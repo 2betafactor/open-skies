@@ -261,24 +261,47 @@ function setupTouch() {
   window.addEventListener("pointerup", end);
   window.addEventListener("pointercancel", end);
 
-  const setThr = (v) => {
-    if (app.flight) app.flight.controls.throttle = v;
-  };
-  const bindThr = (id, v) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const on = (e) => {
-      e.preventDefault();
-      setThr(v);
+  // --- Throttle lever: drag up/down to SET the throttle, like a real quadrant.
+  // Sets flight.throttle directly (absolute) and zeroes the rate control so the
+  // physics leaves it exactly where you put it. It stays put when you let go.
+  const lever = document.getElementById("throttle-lever");
+  const tlFill = document.getElementById("tl-fill");
+  const tlKnob = document.getElementById("tl-knob");
+  if (lever && tlFill && tlKnob) {
+    const PAD = 10;
+    const KNOB = 30;
+    let dragging = false;
+    const applyFrac = (frac) => {
+      frac = Math.max(0, Math.min(1, frac));
+      if (app.flight) {
+        app.flight.throttle = frac;
+        app.flight.controls.throttle = 0; // absolute — don't let the rate control fight it
+      }
+      tlFill.style.height = (frac * 100).toFixed(1) + "%";
+      const travel = lever.getBoundingClientRect().height - PAD * 2 - KNOB;
+      tlKnob.style.transform = `translateY(${(-frac * travel).toFixed(1)}px)`;
     };
-    const off = () => setThr(0);
-    el.addEventListener("pointerdown", on);
-    el.addEventListener("pointerup", off);
-    el.addEventListener("pointercancel", off);
-    el.addEventListener("pointerleave", off);
-  };
-  bindThr("btn-accel", 1);
-  bindThr("btn-decel", -1);
+    const fracFromEvent = (e) => {
+      const r = lever.getBoundingClientRect();
+      const travel = r.height - PAD * 2 - KNOB;
+      const y = e.clientY - (r.top + PAD + KNOB / 2);
+      return 1 - y / travel;
+    };
+    lever.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      try { lever.setPointerCapture(e.pointerId); } catch (err) {}
+      applyFrac(fracFromEvent(e));
+    });
+    lever.addEventListener("pointermove", (e) => {
+      if (dragging) applyFrac(fracFromEvent(e));
+    });
+    const stop = () => { dragging = false; };
+    lever.addEventListener("pointerup", stop);
+    lever.addEventListener("pointercancel", stop);
+    // Expose so a new flight can reset the lever to its starting throttle (0.5).
+    app._syncThrottleLever = () => applyFrac(app.flight ? app.flight.throttle : 0.5);
+  }
 }
 
 // ---- Tilt-to-steer (device gyroscope) ----
@@ -422,6 +445,7 @@ function beginFlight() {
   app.hud.setMuted(app.audio.muted);
   app.controller.bind();
   requestWakeLock(); // stop phones/tablets from sleeping mid-flight
+  if (app._syncThrottleLever) app._syncThrottleLever(); // lever starts at cruise (0.5)
 
   let lastWarn = "";
   let lastCrashes = app.flight.crashes || 0;
