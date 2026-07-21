@@ -76,7 +76,7 @@ export class Flight {
     this._uri = PLANE_URI;
     this._scale = PLANE_SCALE;
     this.vehicleType = "plane"; // "plane" | "heli" | "balloon"
-    this._quality = "performance"; // graphics level; default to playable
+    this._quality = "balanced"; // graphics level; default
 
     this.controls = { pitch: 0, roll: 0, rudder: 0, throttle: 0, level: false };
 
@@ -187,8 +187,8 @@ export class Flight {
     // re-stream. cullRequestsWhileMoving stays TRUE (Cesium default) — easing off
     // tile requests during fast flight avoids the periodic decode hitches that
     // read as the plane "lugging"/surging.
-    this.tileset.cacheBytes = 768 * 1024 * 1024;
-    this.tileset.maximumCacheOverflowBytes = 384 * 1024 * 1024;
+    this.tileset.cacheBytes = 384 * 1024 * 1024; // smaller cache → tiles evicted sooner → no OOM crash
+    this.tileset.maximumCacheOverflowBytes = 128 * 1024 * 1024;
     this.tileset.cullRequestsWhileMoving = true;
     this.tileset.foveatedScreenSpaceError = true;
     scene.primitives.add(this.tileset);
@@ -386,10 +386,12 @@ export class Flight {
   setQuality(level) {
     this._quality = level || "performance";
     if (!this.viewer) return;
+    // dyn:true everywhere (distance falloff) is what keeps memory bounded — the old
+    // Quality preset (sse 8, dyn:false, 4× MSAA) loaded too much and crashed the tab.
     const L = {
       performance: { res: 0.5, msaa: 1, fxaa: false, sse: 40, dyn: true, fog: 0.0004 },
-      balanced: { res: 0.75, msaa: 1, fxaa: true, sse: 20, dyn: true, fog: 0.0002 },
-      quality: { res: 1.0, msaa: 4, fxaa: true, sse: 8, dyn: false, fog: 0.0001 },
+      balanced: { res: 0.8, msaa: 1, fxaa: true, sse: 18, dyn: true, fog: 0.00022 },
+      quality: { res: 1.0, msaa: 1, fxaa: true, sse: 12, dyn: true, fog: 0.00014 },
     }[this._quality];
     if (!L) return;
     const s = this.viewer.scene;

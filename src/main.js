@@ -44,6 +44,9 @@ const PRESETS = [
   { emoji: "🗼", name: "Tokyo Bay", desc: "Odaiba & the bay", lat: 35.6329, lng: 139.8804 },
   { emoji: "🏔️", name: "Swiss Alps", desc: "Over Interlaken", lat: 46.6863, lng: 7.8632 },
   { emoji: "🏜️", name: "Grand Canyon", desc: "Down the gorge", lat: 36.0544, lng: -112.1401 },
+  { emoji: "🐪", name: "Pyramids of Giza", desc: "Over the Great Pyramid", lat: 29.9773, lng: 31.1325 },
+  { emoji: "🏔️", name: "Cape Town", desc: "Table Mountain & harbour", lat: -33.915, lng: 18.4233 },
+  { emoji: "🏝️", name: "Key West", desc: "Island & turquoise sea", lat: 24.5551, lng: -81.78 },
 ];
 
 const app = {
@@ -56,7 +59,7 @@ const app = {
   cancelled: false,
   flying: false,
   vehicle: VEHICLES[0],
-  quality: "performance", // default to playable FPS
+  quality: "balanced", // default
 };
 
 const QUALITY = [
