@@ -63,9 +63,8 @@ const app = {
 };
 
 const QUALITY = [
-  { id: "performance", label: "Performance" },
   { id: "balanced", label: "Balanced" },
-  { id: "quality", label: "Quality" },
+  { id: "quality", label: "Max Quality" },
 ];
 
 // ================= Google Maps loader =================
