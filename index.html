@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>✈️ Open Skies — fly over the real world</title>
+  <link rel="preconnect" href="https://maps.googleapis.com" />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/cesium@1.122/Build/Cesium/Widgets/widgets.css" />
+  <script>window.CESIUM_BASE_URL = "https://unpkg.com/cesium@1.122/Build/Cesium/";</script>
+  <script src="https://unpkg.com/cesium@1.122/Build/Cesium/Cesium.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ============ LANDING ============ -->
+  <section id="screen-landing" class="screen active">
+    <div class="landing-inner">
+      <h1 class="title">✈️ Open Skies</h1>
+      <p class="subtitle">Fly over photorealistic 3D of the real world.</p>
+
+      <div id="vehicles" class="vehicle-row"></div>
+      <div id="quality" class="quality-row"></div>
+
+      <div class="search-row">
+        <input id="place-input" type="text" placeholder="Where do you want to fly?" autocomplete="off" />
+        <button id="btn-geo" class="ghost" title="Fly from my location">📍 My location</button>
+      </div>
+      <p id="landing-status" class="landing-status" role="status"></p>
+
+      <h2 class="presets-heading">Or take off over</h2>
+      <div id="presets" class="presets"></div>
+
+      <h2 class="presets-heading">🏆 Leaderboard — longest flights</h2>
+      <div id="landing-board" class="board"></div>
+
+      <p class="hint">Controls: <b>W/S</b> pitch · <b>A/D</b> roll · <b>Q/E</b> rudder · <b>Shift/Ctrl</b> throttle · <b>F</b> flaps · <b>V</b> arcade/sim · <b>Esc</b> land</p>
+    </div>
+  </section>
+
+  <!-- ============ LOADING ============ -->
+  <section id="screen-loading" class="screen">
+    <div class="loading-inner">
+      <div class="spinner">✈️</div>
+      <h2 id="loading-title">Pre-flight…</h2>
+      <div class="progress-track"><div id="loading-bar" class="progress-fill"></div></div>
+      <p id="loading-sub" class="loading-sub"></p>
+      <button id="btn-loading-cancel" class="ghost small">Cancel</button>
+    </div>
+  </section>
+
+  <!-- ============ FLYING ============ -->
+  <section id="screen-ride" class="screen">
+    <div id="cesiumContainer" class="cesium-root"></div>
+    <div id="flash" class="flash-white"></div>
+
+    <!-- HUD -->
+    <div class="hud hud-top">
+      <div class="hud-instrument">
+        <div id="hud-airspeed" class="hud-value">0 km/h</div>
+        <div class="hud-label">AIRSPEED</div>
+      </div>
+      <div class="hud-instrument center">
+        <div id="hud-compass" class="hud-compass">N</div>
+        <div id="hud-heading" class="hud-label">0°</div>
+      </div>
+      <div class="hud-instrument right">
+        <div id="hud-altitude" class="hud-value">0 m</div>
+        <div class="hud-label">ALTITUDE</div>
+      </div>
+      <div class="hud-buttons">
+        <button id="btn-tune" class="hud-btn" title="Flight tuner (g)">⚙</button>
+        <button id="btn-mute" class="hud-btn" title="Mute / unmute">🔊</button>
+        <button id="btn-dismount" class="hud-btn" title="Land (Esc)">Land</button>
+      </div>
+    </div>
+
+    <div id="hud-warning" class="hud-warning"></div>
+    <div id="hud-crashes" class="hud-crashes"></div>
+    <div id="hud-sim" class="hud-sim"></div>
+
+    <div class="throttle-wrap">
+      <span class="throttle-cap">THR</span>
+      <div class="throttle-track"><div id="hud-throttle-bar" class="throttle-fill"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS + LEADERBOARD ============ -->
+  <section id="screen-result" class="screen">
+    <div class="result-inner">
+      <div class="result-emoji">🛬</div>
+      <h2>Flight complete</h2>
+      <div class="result-stats">
+        <div><span id="result-distance">0 km</span><label>Distance</label></div>
+        <div><span id="result-time">0:00</span><label>Time</label></div>
+        <div><span id="result-topspeed">0 km/h</span><label>Top speed</label></div>
+      </div>
+      <div id="result-submit-row" class="result-submit">
+        <input id="score-name" maxlength="10" placeholder="Your name" autocomplete="off" />
+        <button id="btn-submit-score" class="primary">Submit to leaderboard</button>
+      </div>
+      <div id="result-share" class="result-share" style="display:none">
+        <span class="share-label">🔗 Share this flight:</span>
+        <input id="share-link" readonly />
+        <button id="btn-share-copy" class="ghost small">Copy link</button>
+      </div>
+      <h3 class="board-title">🏆 Leaderboard</h3>
+      <div id="result-board" class="board"></div>
+      <button id="btn-result-again" class="ghost">Fly again</button>
+    </div>
+  </section>
+
+  <!-- Fatal error banner -->
+  <div id="error-banner" class="error-banner"></div>
+
+  <script src="config.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
