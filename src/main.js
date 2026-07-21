@@ -98,6 +98,7 @@ function initApp() {
   setupGeolocation();
   setupResult();
   setupTouch();
+  setupTilt();
   renderBoard("landing-board");
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
@@ -276,6 +277,77 @@ function setupTouch() {
   };
   bindThr("btn-accel", 1);
   bindThr("btn-decel", -1);
+}
+
+// ---- Tilt-to-steer (device gyroscope) ----
+function setupTilt() {
+  const btn = document.getElementById("btn-tilt");
+  if (!btn) return;
+  let enabled = false;
+  let neutral = null;
+  const clamp1 = (x) => Math.max(-1, Math.min(1, x));
+
+  const handler = (e) => {
+    if (e.beta == null || e.gamma == null || !app.flight) return;
+    if (!neutral) {
+      neutral = { beta: e.beta, gamma: e.gamma }; // calibrate to how you're holding it
+      return;
+    }
+    const angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    const db = e.beta - neutral.beta;
+    const dg = e.gamma - neutral.gamma;
+    let roll, pitch;
+    if (angle === 90) {
+      roll = db; pitch = -dg;
+    } else if (angle === 270 || angle === -90) {
+      roll = -db; pitch = dg;
+    } else {
+      roll = dg; pitch = -db; // portrait
+    }
+    const S = 1 / 28; // ~28° tilt = full deflection
+    app.flight.controls.roll = clamp1(roll * S);
+    app.flight.controls.pitch = clamp1(pitch * S);
+  };
+
+  const setLabel = () => {
+    btn.textContent = enabled ? "🎮 Tilt: ON" : "🎮 Tilt: OFF";
+    btn.classList.toggle("on", enabled);
+  };
+  const enable = () => {
+    neutral = null;
+    window.addEventListener("deviceorientation", handler);
+    enabled = true;
+    document.body.classList.add("tilt-on"); // CSS hides the stick
+    setLabel();
+  };
+  const disable = () => {
+    window.removeEventListener("deviceorientation", handler);
+    enabled = false;
+    document.body.classList.remove("tilt-on");
+    if (app.flight) {
+      app.flight.controls.roll = 0;
+      app.flight.controls.pitch = 0;
+    }
+    setLabel();
+  };
+
+  btn.addEventListener("click", async () => {
+    if (enabled) return disable();
+    const DOE = window.DeviceOrientationEvent;
+    if (DOE && typeof DOE.requestPermission === "function") {
+      try {
+        const res = await DOE.requestPermission(); // iOS 13+ needs this from a tap
+        if (res !== "granted") {
+          alert("Motion access was denied. Enable it in Settings → Safari → Motion & Orientation Access.");
+          return;
+        }
+      } catch (e) {
+        return;
+      }
+    }
+    enable();
+  });
+  setLabel();
 }
 
 function setupGeolocation() {
