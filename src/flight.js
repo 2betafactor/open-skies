@@ -200,20 +200,11 @@ export class Flight {
     const C = window.Cesium;
     this._teardown();
 
-    // "Fly toward me": spawn ~3.8 km out and aim at the target (marked on the map).
-    let sLat = lat;
-    let sLng = lng;
+    const sLat = lat;
+    const sLng = lng;
     this._targetLL = null;
-    let markerLL = null;
-    if (opts.headTo) {
-      const p = destPoint(lat, lng, 3800, 200); // spawn SW of the target
-      sLat = p.lat;
-      sLng = p.lng;
-      markerLL = { lat, lng };
-      this._targetLL = { lat, lng };
-    }
     this.spawnLL = { lat: sLat, lng: sLng };
-    this.heading = opts.headTo ? wrap2pi(bearingRad(sLat, sLng, lat, lng)) : 0;
+    this.heading = 0;
     this.pitch = 0;
     this.roll = 0;
     this._rollVel = 0;
@@ -260,7 +251,6 @@ export class Flight {
     log(`ground ${Math.round(this.spawnGround)}m → spawn ${Math.round(this.spawnGround + SPAWN_AGL)}m`);
 
     this._addPlane();
-    if (markerLL) this._addMarker(markerLL.lat, markerLL.lng, this.spawnGround);
 
     this._camHeading = this.heading;
     this.viewer.camera.frustum.fov = 60 * D2R; // fixed FOV (per-frame changes shimmer)
@@ -917,18 +907,7 @@ export class Flight {
   }
 
   _emitState() {
-    let homeKm = null;
-    if (this._targetLL && this.position) {
-      const c = window.Cesium.Cartographic.fromCartesian(this.position);
-      homeKm = haversineKm(
-        window.Cesium.Math.toDegrees(c.latitude),
-        window.Cesium.Math.toDegrees(c.longitude),
-        this._targetLL.lat,
-        this._targetLL.lng
-      );
-    }
     this.onState({
-      homeKm,
       speedKmh: this.speed * 3.6,
       altM: this.alt,
       aglM: this.agl,

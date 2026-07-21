@@ -358,7 +358,7 @@ function setupGeolocation() {
     }
     setLandingStatus("Finding you…");
     navigator.geolocation.getCurrentPosition(
-      (pos) => takeOff(pos.coords.latitude, pos.coords.longitude, "your location", { headTo: true }),
+      (pos) => takeOff(pos.coords.latitude, pos.coords.longitude, "your location"),
       () => setLandingStatus("Couldn't get your location. Try searching instead.", true),
       { enableHighAccuracy: true, timeout: 10000 }
     );
