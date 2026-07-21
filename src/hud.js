@@ -53,10 +53,12 @@ export class HUD {
     if (this.el.attInner) this.el.attInner.style.transform = `translateY(${(s.pitchDeg || 0) * 1.6}px)`;
 
     if (this.el.vspeed) {
+      const parts = [];
+      if (s.homeKm != null) parts.push("📍 " + s.homeKm.toFixed(1) + " km");
       const v = Math.round(s.vspeed || 0);
-      let t = "V/S " + (v >= 0 ? "+" : "") + v + " m/s";
-      if (s.flaps) t += "   ·   FLAPS " + s.flaps + "°";
-      this.el.vspeed.textContent = t;
+      parts.push("V/S " + (v >= 0 ? "+" : "") + v + " m/s");
+      if (s.flaps) parts.push("FLAPS " + s.flaps + "°");
+      this.el.vspeed.textContent = parts.join("   ·   ");
     }
   }
 }

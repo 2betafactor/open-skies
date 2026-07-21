@@ -700,3 +700,141 @@ body.touch .throttle-wrap { bottom: calc(env(safe-area-inset-bottom, 0) + 150px)
 }
 .tilt-toggle.on { background: rgba(127, 176, 105, 0.35); border-color: rgba(127, 176, 105, 0.7); }
 body.tilt-on #joy { display: none; }
+
+/* ================================================================
+   POLISH PASS — menus + movement controls
+   ================================================================ */
+
+/* ---- Cinematic dusk background for menu screens ---- */
+#screen-landing, #screen-result {
+  background:
+    radial-gradient(1200px 620px at 50% -18%, rgba(127,176,105,0.16), transparent 62%),
+    radial-gradient(900px 520px at 85% 118%, rgba(200,161,90,0.12), transparent 60%),
+    linear-gradient(168deg, #0d1c17 0%, #0a1220 58%, #070c11 100%);
+  overflow-y: auto;
+}
+.landing-inner { padding: 34px 24px 48px; }
+
+/* ---- Hero ---- */
+.title {
+  font-size: clamp(2.8rem, 8vw, 4.6rem);
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  text-shadow: 0 0 40px rgba(127,176,105,0.25);
+}
+.subtitle { font-size: 1.12rem; margin: 0.35em 0 2em; }
+
+/* ---- Graphics segmented control ---- */
+.quality-row { gap: 6px; margin-bottom: 24px; }
+.quality-cap { font-size: 0.68rem; letter-spacing: 2.5px; }
+.quality-btn {
+  padding: 9px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  transition: all 0.15s ease;
+}
+.quality-btn:hover { border-color: rgba(255,255,255,0.28); }
+.quality-btn.active {
+  background: linear-gradient(180deg, var(--accent-2), #5f9150);
+  border-color: transparent;
+  color: #0a1410;
+  box-shadow: 0 4px 16px rgba(127,176,105,0.35);
+}
+
+/* ---- Search + geolocate ---- */
+.search-row { gap: 12px; margin-bottom: 6px; }
+#place-input {
+  padding: 16px 20px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+#place-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,161,90,0.18); }
+#btn-geo { border-radius: 14px; padding: 14px 20px; }
+
+/* ---- Section headings ---- */
+.presets-heading {
+  font-size: 0.72rem;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.42);
+  margin: 2.4em 0 1.1em;
+}
+
+/* ---- Preset cards ---- */
+.presets { gap: 14px; }
+.preset-card {
+  position: relative;
+  background: linear-gradient(158deg, rgba(255,255,255,0.07), rgba(255,255,255,0.015));
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  padding: 18px 16px 20px;
+  overflow: hidden;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.preset-card::after {
+  content: "Fly →";
+  position: absolute;
+  right: 14px; bottom: 14px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.preset-card:hover, .preset-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(200,161,90,0.7);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.45);
+}
+.preset-card:hover::after, .preset-card:focus-visible::after { opacity: 1; transform: translateX(0); }
+.preset-emoji { font-size: 2rem; margin-bottom: 4px; }
+.preset-name { font-size: 1.08rem; }
+
+/* ---- Leaderboard ---- */
+.board-row {
+  background: linear-gradient(158deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border-radius: 12px;
+  transition: border-color 0.15s ease;
+}
+.board-row:hover { border-color: rgba(255,255,255,0.2); }
+
+/* ---- Hide keyboard-only hint on touch; add a touch hint ---- */
+body.touch .hint { display: none; }
+
+/* ================= Movement controls polish ================= */
+.joy {
+  width: 148px; height: 148px;
+  background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.08), rgba(0,0,0,0.34));
+  border: 2px solid rgba(255,255,255,0.28);
+  box-shadow: inset 0 0 30px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.4);
+  backdrop-filter: blur(3px);
+}
+.joy-knob {
+  width: 62px; height: 62px;
+  background: radial-gradient(circle at 40% 35%, #e6c884, var(--accent));
+  border: 2px solid rgba(255,255,255,0.6);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.55), 0 0 18px rgba(200,161,90,0.4);
+}
+.tbtn {
+  width: 116px; height: 68px;
+  border-radius: 18px;
+  background: rgba(10,15,20,0.5);
+  border: 2px solid rgba(255,255,255,0.2);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+  font-size: 1.5rem;
+  transition: filter 0.1s ease, transform 0.06s ease;
+}
+.tbtn.accel {
+  background: linear-gradient(180deg, rgba(127,176,105,0.4), rgba(127,176,105,0.18));
+  border-color: rgba(127,176,105,0.7);
+}
+.tbtn:active { transform: scale(0.95); filter: brightness(1.35); }
+.tilt-toggle { backdrop-filter: blur(4px); box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+
+/* ---- Bigger top-bar buttons for touch ---- */
+body.touch .hud-btn { padding: 11px 16px; font-size: 0.95rem; }

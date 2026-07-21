@@ -358,7 +358,7 @@ function setupGeolocation() {
     }
     setLandingStatus("Finding you…");
     navigator.geolocation.getCurrentPosition(
-      (pos) => takeOff(pos.coords.latitude, pos.coords.longitude, "your location"),
+      (pos) => takeOff(pos.coords.latitude, pos.coords.longitude, "your location", { headTo: true }),
       () => setLandingStatus("Couldn't get your location. Try searching instead.", true),
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -372,7 +372,7 @@ function setLandingStatus(msg, isError = false) {
 }
 
 // ================= Take off =================
-async function takeOff(lat, lng, label) {
+async function takeOff(lat, lng, label, opts = {}) {
   app.cancelled = false;
   app.flying = false;
   // Unlock/resume audio NOW, inside the click gesture — before the tile-load
@@ -391,7 +391,7 @@ async function takeOff(lat, lng, label) {
     app.flight.setVehicle(app.vehicle);
     await app.flight.spawn(lat, lng, (frac, lbl) => {
       if (!app.cancelled) setLoading(frac, lbl);
-    });
+    }, opts);
     if (app.cancelled) return;
 
     showLoading(false);

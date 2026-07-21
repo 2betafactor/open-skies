@@ -115,6 +115,8 @@ export class Flight {
     this.warning = "";
     this.spawnLL = null;
     this.spawnGround = 0;
+    this._marker = null; // "you are here" beacon
+    this._targetLL = null;
 
     this._rollVel = 0;
     this._pitchVel = 0;
@@ -194,12 +196,24 @@ export class Flight {
     return this;
   }
 
-  async spawn(lat, lng, onProgress = () => {}) {
+  async spawn(lat, lng, onProgress = () => {}, opts = {}) {
     const C = window.Cesium;
     this._teardown();
 
-    this.spawnLL = { lat, lng };
-    this.heading = 0;
+    // "Fly toward me": spawn ~3.8 km out and aim at the target (marked on the map).
+    let sLat = lat;
+    let sLng = lng;
+    this._targetLL = null;
+    let markerLL = null;
+    if (opts.headTo) {
+      const p = destPoint(lat, lng, 3800, 200); // spawn SW of the target
+      sLat = p.lat;
+      sLng = p.lng;
+      markerLL = { lat, lng };
+      this._targetLL = { lat, lng };
+    }
+    this.spawnLL = { lat: sLat, lng: sLng };
+    this.heading = opts.headTo ? wrap2pi(bearingRad(sLat, sLng, lat, lng)) : 0;
     this.pitch = 0;
     this.roll = 0;
     this._rollVel = 0;
@@ -214,13 +228,13 @@ export class Flight {
     this._aglBuf = [];
     this._lowSince = 0;
     this._graceUntil = performance.now() + 3000;
-    this._setPositionLL(lat, lng, 3000); // provisional; corrected after ground sample
+    this._setPositionLL(sLat, sLng, 3000); // provisional; corrected after ground sample
     this._recomputeOrientation();
 
     onProgress(0.4, "Spooling up the tiles…");
     // Look straight down from high above so tiles stream in regardless of terrain height.
     this.viewer.camera.setView({
-      destination: C.Cartesian3.fromDegrees(lng, lat, 6000),
+      destination: C.Cartesian3.fromDegrees(sLng, sLat, 6000),
       orientation: { heading: 0, pitch: -1.45, roll: 0 },
     });
     await this._waitForTiles(25000, onProgress); // longer preload of the spawn area
@@ -228,13 +242,13 @@ export class Flight {
     // Find the local ground so we can spawn ABOVE it (canyon/alps safe).
     this.spawnGround = 0;
     try {
-      const carto = C.Cartographic.fromDegrees(lng, lat);
+      const carto = C.Cartographic.fromDegrees(sLng, sLat);
       const [res] = await this.viewer.scene.sampleHeightMostDetailed([carto]);
       if (res && isFinite(res.height)) this.spawnGround = res.height;
     } catch (e) {
       /* fall back to 0 */
     }
-    this._setPositionLL(lat, lng, this.spawnGround + SPAWN_AGL);
+    this._setPositionLL(sLat, sLng, this.spawnGround + SPAWN_AGL);
     this._graceUntil = performance.now() + 3000;
     this._recomputeOrientation();
 
@@ -246,6 +260,7 @@ export class Flight {
     log(`ground ${Math.round(this.spawnGround)}m → spawn ${Math.round(this.spawnGround + SPAWN_AGL)}m`);
 
     this._addPlane();
+    if (markerLL) this._addMarker(markerLL.lat, markerLL.lng, this.spawnGround);
 
     this._camHeading = this.heading;
     this.viewer.camera.frustum.fov = 60 * D2R; // fixed FOV (per-frame changes shimmer)
@@ -261,6 +276,34 @@ export class Flight {
       position: new C.CallbackProperty(() => this.position, false),
       orientation: new C.CallbackProperty(() => this.orientation, false),
       model: { uri: this._uri, scale: this._scale, minimumPixelSize: 64, runAnimations: false },
+    });
+  }
+
+  // A glowing beacon + "YOU" label at the target location (fly-toward-me mode).
+  _addMarker(lat, lng, baseAlt) {
+    const C = window.Cesium;
+    this._marker = this.viewer.entities.add({
+      polyline: {
+        positions: [
+          C.Cartesian3.fromDegrees(lng, lat, baseAlt - 60),
+          C.Cartesian3.fromDegrees(lng, lat, baseAlt + 950),
+        ],
+        width: 8,
+        material: new C.PolylineGlowMaterialProperty({
+          glowPower: 0.28,
+          color: C.Color.fromCssColorString("#4fc3f7"),
+        }),
+      },
+      position: C.Cartesian3.fromDegrees(lng, lat, baseAlt + 1010),
+      label: {
+        text: "📍 YOU",
+        font: "bold 18px sans-serif",
+        fillColor: C.Color.WHITE,
+        showBackground: true,
+        backgroundColor: C.Color.fromCssColorString("#0a0f0d").withAlpha(0.75),
+        pixelOffset: new C.Cartesian2(0, -6),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
     });
   }
 
@@ -874,7 +917,18 @@ export class Flight {
   }
 
   _emitState() {
+    let homeKm = null;
+    if (this._targetLL && this.position) {
+      const c = window.Cesium.Cartographic.fromCartesian(this.position);
+      homeKm = haversineKm(
+        window.Cesium.Math.toDegrees(c.latitude),
+        window.Cesium.Math.toDegrees(c.longitude),
+        this._targetLL.lat,
+        this._targetLL.lng
+      );
+    }
     this.onState({
+      homeKm,
       speedKmh: this.speed * 3.6,
       altM: this.alt,
       aglM: this.agl,
@@ -927,6 +981,10 @@ export class Flight {
     if (this.plane) {
       this.viewer.entities.remove(this.plane);
       this.plane = null;
+    }
+    if (this._marker) {
+      this.viewer.entities.remove(this._marker);
+      this._marker = null;
     }
     // Release the locked camera frame so landing/next vehicle can reposition.
     this.viewer.camera.lookAtTransform(window.Cesium.Matrix4.IDENTITY);
