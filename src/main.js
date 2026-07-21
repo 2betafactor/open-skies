@@ -97,6 +97,7 @@ function initApp() {
   setupSearch();
   setupGeolocation();
   setupResult();
+  setupTouch();
   renderBoard("landing-board");
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
@@ -209,6 +210,74 @@ function setupSearch() {
   });
 }
 
+// ---- Touch controls (mobile / tablet) ----
+function setupTouch() {
+  if (matchMedia("(pointer: coarse)").matches || "ontouchstart" in window || navigator.maxTouchPoints > 0) {
+    document.body.classList.add("touch");
+  }
+  const clamp1 = (x) => Math.max(-1, Math.min(1, x));
+  const joy = document.getElementById("joy");
+  const knob = document.getElementById("joy-knob");
+  let active = false;
+  let cx = 0;
+  let cy = 0;
+  let R = 60;
+  const steer = (roll, pitch) => {
+    if (app.flight) {
+      app.flight.controls.roll = roll;
+      app.flight.controls.pitch = pitch;
+    }
+  };
+  const start = (e) => {
+    active = true;
+    const r = joy.getBoundingClientRect();
+    cx = r.left + r.width / 2;
+    cy = r.top + r.height / 2;
+    R = r.width / 2 - 8;
+    move(e);
+  };
+  const move = (e) => {
+    if (!active) return;
+    let dx = e.clientX - cx;
+    let dy = e.clientY - cy;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d > R) {
+      dx = (dx / d) * R;
+      dy = (dy / d) * R;
+    }
+    knob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+    steer(clamp1(dx / R), clamp1(-dy / R)); // push up = pitch up
+  };
+  const end = () => {
+    active = false;
+    knob.style.transform = "translate(0,0)";
+    steer(0, 0);
+  };
+  joy.addEventListener("pointerdown", start);
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", end);
+
+  const setThr = (v) => {
+    if (app.flight) app.flight.controls.throttle = v;
+  };
+  const bindThr = (id, v) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const on = (e) => {
+      e.preventDefault();
+      setThr(v);
+    };
+    const off = () => setThr(0);
+    el.addEventListener("pointerdown", on);
+    el.addEventListener("pointerup", off);
+    el.addEventListener("pointercancel", off);
+    el.addEventListener("pointerleave", off);
+  };
+  bindThr("btn-accel", 1);
+  bindThr("btn-decel", -1);
+}
+
 function setupGeolocation() {
   document.getElementById("btn-geo").addEventListener("click", () => {
     if (!navigator.geolocation) {
@@ -265,6 +334,7 @@ async function takeOff(lat, lng, label) {
 }
 
 function beginFlight() {
+  Object.assign(app.flight.controls, { pitch: 0, roll: 0, rudder: 0, throttle: 0, level: false });
   app.audio.start();
   app.hud.setMuted(app.audio.muted);
   app.controller.bind();

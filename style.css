@@ -614,3 +614,71 @@ button:active { transform: translateY(1px) scale(0.98); }
   color: var(--text);
   width: min(260px, 60vw);
 }
+
+/* ================= Touch controls (mobile / tablet) ================= */
+.touch-controls { display: none; }
+body.touch .touch-controls { display: block; }
+
+body.touch .throttle-wrap { bottom: calc(env(safe-area-inset-bottom, 0) + 150px); }
+
+.joy {
+  position: absolute;
+  z-index: 12;
+  left: calc(env(safe-area-inset-left, 0) + 20px);
+  bottom: calc(env(safe-area-inset-bottom, 0) + 24px);
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.joy-knob {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(200, 161, 90, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  will-change: transform;
+}
+.joy-hint {
+  position: absolute;
+  bottom: 8px;
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+.throttle-btns {
+  position: absolute;
+  z-index: 12;
+  right: calc(env(safe-area-inset-right, 0) + 20px);
+  bottom: calc(env(safe-area-inset-bottom, 0) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tbtn {
+  width: 110px;
+  height: 64px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  color: var(--text);
+  font-size: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  touch-action: none;
+  user-select: none;
+}
+.tbtn b { font-size: 0.62rem; font-weight: 700; letter-spacing: 1px; }
+.tbtn.accel { background: rgba(127, 176, 105, 0.32); border-color: rgba(127, 176, 105, 0.6); }
+.tbtn:active { filter: brightness(1.3); }

@@ -1,20 +1,30 @@
-// audio.js — synthesized single-prop aircraft engine: layered detuned oscillators
-// through a lowpass, a subtle prop "chop" amplitude modulation, a faint high
-// whine, and wind that scales with speed. Everything revs with throttle.
-// Web Audio only; must be started from a user gesture (Take Off).
+// audio.js — calm ambient BACKGROUND MUSIC (evolving chord pads through reverb),
+// with a faint wind bed that rises with speed. No engine noise. Web Audio only;
+// must be started from a user gesture (Take Off). Interface kept the same so the
+// rest of the app doesn't change: start / setThrottle / setSpeed / toggleMute.
+
+// A gentle, cinematic loop: Am – F – C – G. Four voices, one note each.
+const CHORDS = [
+  [220.0, 261.63, 329.63, 440.0], // Am  (A3 C4 E4 A4)
+  [174.61, 220.0, 261.63, 349.23], // F   (F3 A3 C4 F4)
+  [196.0, 261.63, 329.63, 392.0], // C/G (G3 C4 E4 G4)
+  [196.0, 246.94, 293.66, 392.0], // G   (G3 B3 D4 G4)
+];
+const BASS = [110.0, 87.31, 130.81, 98.0]; // A2 F2 C3 G2
+const CHORD_SEC = 9;
 
 export class EngineAudio {
   constructor() {
     this.ctx = null;
     this.master = null;
-    this.engineGain = null;
-    this.lp = null;
-    this.osc = [];
-    this.chop = null;
-    this.whine = null;
+    this.padLp = null;
+    this.voices = [];
+    this.bass = null;
     this.windGain = null;
     this.muted = false;
     this._started = false;
+    this._chordTimer = null;
+    this._idx = 0;
   }
 
   async start() {
@@ -28,92 +38,104 @@ export class EngineAudio {
     const ctx = this.ctx;
 
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.85;
+    this.master.gain.value = this.muted ? 0 : 0.55;
     this.master.connect(ctx.destination);
 
-    // Engine core: detuned saws + a sub, through a lowpass, chopped by the prop.
-    this.lp = ctx.createBiquadFilter();
-    this.lp.type = "lowpass";
-    this.lp.frequency.value = 650;
-    this.lp.Q.value = 0.7;
-    this.lp.connect(this.master);
+    // Reverb for space.
+    const reverb = ctx.createConvolver();
+    reverb.buffer = makeImpulse(ctx, 2.6, 2.2);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.55;
+    reverb.connect(wet).connect(this.master);
 
-    this.engineGain = ctx.createGain();
-    this.engineGain.gain.value = 0.42; // base; the chop LFO swings this a little
-    this.engineGain.connect(this.lp);
+    // Shared warm lowpass for the pads.
+    this.padLp = ctx.createBiquadFilter();
+    this.padLp.type = "lowpass";
+    this.padLp.frequency.value = 1100;
+    this.padLp.Q.value = 0.4;
+    const padBus = ctx.createGain();
+    padBus.gain.value = 0.9;
+    this.padLp.connect(padBus);
+    padBus.connect(this.master); // dry
+    padBus.connect(reverb); // wet
 
-    const mix = ctx.createGain();
-    mix.gain.value = 0.5;
-    mix.connect(this.engineGain);
-    const o1 = ctx.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = 60;
-    const o2 = ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = 90;
-    const o3 = ctx.createOscillator(); o3.type = "triangle"; o3.frequency.value = 30;
-    this.osc = [o1, o2, o3];
-    o1.connect(mix); o2.connect(mix); o3.connect(mix);
+    // Slow filter LFO for gentle movement.
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.05;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 300;
+    lfo.connect(lfoGain).connect(this.padLp.frequency);
+    lfo.start();
 
-    // Prop chop — gentle amplitude modulation (NOT the old flutter).
-    this.chop = ctx.createOscillator();
-    this.chop.type = "sine";
-    this.chop.frequency.value = 24;
-    const chopDepth = ctx.createGain();
-    chopDepth.gain.value = 0.16;
-    this.chop.connect(chopDepth).connect(this.engineGain.gain);
+    // Four detuned pad voices.
+    for (let v = 0; v < 4; v++) {
+      const g = ctx.createGain();
+      g.gain.value = 0.16;
+      g.connect(this.padLp);
+      const o1 = ctx.createOscillator();
+      o1.type = "triangle";
+      const o2 = ctx.createOscillator();
+      o2.type = "sine";
+      o2.detune.value = 6; // slight chorus
+      o1.connect(g);
+      o2.connect(g);
+      o1.start();
+      o2.start();
+      this.voices.push({ oscs: [o1, o2] });
+    }
 
-    // Faint high whine for "spinning metal".
-    this.whine = ctx.createOscillator();
-    this.whine.type = "sawtooth";
-    this.whine.frequency.value = 800;
-    const whineHp = ctx.createBiquadFilter();
-    whineHp.type = "highpass";
-    whineHp.frequency.value = 600;
-    const whineGain = ctx.createGain();
-    whineGain.gain.value = 0.035;
-    this.whine.connect(whineHp).connect(whineGain).connect(this.master);
+    // Soft sub bass following the chord root.
+    this.bass = ctx.createOscillator();
+    this.bass.type = "sine";
+    const bg = ctx.createGain();
+    bg.gain.value = 0.16;
+    this.bass.connect(bg).connect(this.master);
+    this.bass.start();
 
-    // Wind — noise bed, volume follows speed.
+    // Faint wind bed — volume follows speed (set via setSpeed).
     const noise = ctx.createBufferSource();
-    noise.buffer = makeNoise(ctx, 1.5);
+    noise.buffer = makeNoise(ctx, 2);
     noise.loop = true;
     const wbp = ctx.createBiquadFilter();
     wbp.type = "bandpass";
-    wbp.frequency.value = 550;
-    wbp.Q.value = 0.6;
+    wbp.frequency.value = 500;
+    wbp.Q.value = 0.4;
     this.windGain = ctx.createGain();
-    this.windGain.gain.value = 0.03;
+    this.windGain.gain.value = 0.02;
     noise.connect(wbp).connect(this.windGain).connect(this.master);
-
-    o1.start(); o2.start(); o3.start();
-    this.chop.start();
-    this.whine.start();
     noise.start();
 
     this._started = true;
-    this.setThrottle(0.5);
+    this._idx = 0;
+    this._setChord(0);
+    this._chordTimer = setInterval(() => this._setChord(++this._idx), CHORD_SEC * 1000);
   }
 
-  setThrottle(t) {
+  _setChord(i) {
     if (!this._started) return;
     const now = this.ctx.currentTime;
-    const base = 55 + t * 75; // 55–130 Hz fundamental (idle → full)
-    const T = 0.12;
-    this.osc[0].frequency.setTargetAtTime(base, now, T);
-    this.osc[1].frequency.setTargetAtTime(base * 1.5, now, T);
-    this.osc[2].frequency.setTargetAtTime(base * 0.5, now, T);
-    this.chop.frequency.setTargetAtTime(18 + t * 34, now, T); // blade rate rises with revs
-    this.lp.frequency.setTargetAtTime(420 + t * 750, now, 0.15);
-    this.whine.frequency.setTargetAtTime(700 + t * 1000, now, T);
-    this.engineGain.gain.setTargetAtTime(0.32 + t * 0.2, now, 0.2);
+    const chord = CHORDS[i % CHORDS.length];
+    for (let v = 0; v < this.voices.length; v++) {
+      const f = chord[v % chord.length];
+      this.voices[v].oscs.forEach((o) => o.frequency.setTargetAtTime(f, now, 1.6));
+    }
+    this.bass.frequency.setTargetAtTime(BASS[i % BASS.length], now, 1.6);
   }
 
+  // Music is independent of throttle — no-op (kept for interface compatibility).
+  setThrottle() {}
+
+  // Speed gently brightens the music and lifts the wind.
   setSpeed(frac) {
     if (!this._started) return;
-    this.windGain.gain.setTargetAtTime(0.025 + frac * 0.12, this.ctx.currentTime, 0.3);
+    const now = this.ctx.currentTime;
+    this.windGain.gain.setTargetAtTime(0.02 + frac * 0.1, now, 0.5);
   }
 
   toggleMute() {
     this.muted = !this.muted;
     if (this._started) {
-      this.master.gain.setTargetAtTime(this.muted ? 0 : 0.85, this.ctx.currentTime, 0.05);
+      this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, this.ctx.currentTime, 0.08);
     }
     return this.muted;
   }
@@ -126,7 +148,19 @@ export class EngineAudio {
 function makeNoise(ctx, seconds) {
   const len = Math.floor(ctx.sampleRate * seconds);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function makeImpulse(ctx, seconds, decay) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
   return buf;
 }
