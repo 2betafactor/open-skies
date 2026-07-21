@@ -287,7 +287,9 @@ function setupTilt() {
   if (!btn) return;
   let enabled = false;
   let neutral = null;
+  let sRoll = 0, sPitch = 0; // low-passed control values (steady, plane-like)
   const clamp1 = (x) => Math.max(-1, Math.min(1, x));
+  const deadzone = (x) => (Math.abs(x) < 0.05 ? 0 : x); // ignore tiny hand-shake
 
   const handler = (e) => {
     if (e.beta == null || e.gamma == null || !app.flight) return;
@@ -306,9 +308,15 @@ function setupTilt() {
     } else {
       roll = dg; pitch = -db; // portrait
     }
-    const S = 1 / 28; // ~28° tilt = full deflection
-    app.flight.controls.roll = clamp1(roll * S);
-    app.flight.controls.pitch = clamp1(pitch * S);
+    const S = 1 / 32; // ~32° tilt = full deflection (gentler than before)
+    const tr = deadzone(clamp1(roll * S));
+    const tp = deadzone(clamp1(pitch * S));
+    // Ease toward the target so the plane banks smoothly instead of snapping —
+    // this is what makes tilt-flying feel like a real aircraft, not a spirit level.
+    sRoll += (tr - sRoll) * 0.25;
+    sPitch += (tp - sPitch) * 0.25;
+    app.flight.controls.roll = sRoll;
+    app.flight.controls.pitch = sPitch;
   };
 
   const setLabel = () => {
@@ -317,6 +325,7 @@ function setupTilt() {
   };
   const enable = () => {
     neutral = null;
+    sRoll = 0; sPitch = 0;
     window.addEventListener("deviceorientation", handler);
     enabled = true;
     document.body.classList.add("tilt-on"); // CSS hides the stick
@@ -412,21 +421,51 @@ function beginFlight() {
   app.audio.start();
   app.hud.setMuted(app.audio.muted);
   app.controller.bind();
+  requestWakeLock(); // stop phones/tablets from sleeping mid-flight
 
+  let lastWarn = "";
+  let lastCrashes = app.flight.crashes || 0;
   app.flight.onState = (s) => {
     app.hud.update(s);
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
+    // Haptics — a real cockpit shakes. Buzz on a fresh warning, harder on impact.
+    if (navigator.vibrate) {
+      if ((s.crashes || 0) > lastCrashes) navigator.vibrate([90, 40, 90]);
+      else if (s.warning && s.warning !== lastWarn) navigator.vibrate(50);
+    }
+    lastWarn = s.warning || "";
+    lastCrashes = s.crashes || 0;
   };
 
   app.flying = true;
   app.flight.start();
 }
 
+// Keep the display awake while flying (mobile screens sleep after ~30 s idle).
+let _wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ("wakeLock" in navigator) _wakeLock = await navigator.wakeLock.request("screen");
+  } catch (e) {
+    /* not supported / denied — harmless */
+  }
+}
+function releaseWakeLock() {
+  try {
+    if (_wakeLock) { _wakeLock.release(); _wakeLock = null; }
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  // Wake locks drop when you switch tabs — re-acquire on return if still flying.
+  if (document.visibilityState === "visible" && app.flying && !_wakeLock) requestWakeLock();
+});
+
 function dismount() {
   const wasFlying = app.flying;
   const flight = app.flight ? app.flight.getFlight() : null;
   app.flying = false;
+  releaseWakeLock();
   if (app.controller) app.controller.unbind();
   if (app.flight) app.flight.dispose();
   if (app.audio) app.audio.suspend();

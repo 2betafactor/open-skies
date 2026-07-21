@@ -838,3 +838,32 @@ body.touch .hint { display: none; }
 
 /* ---- Bigger top-bar buttons for touch ---- */
 body.touch .hud-btn { padding: 11px 16px; font-size: 0.95rem; }
+
+/* ---- Mobile: rotate-to-landscape prompt (touch + portrait only) ---- */
+.rotate-hint { display: none; }
+@media (orientation: portrait) and (pointer: coarse) {
+  #screen-ride.active .rotate-hint {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+    background: rgba(6, 12, 22, 0.94);
+    color: #eaf2ff;
+  }
+  #screen-ride.active .rotate-hint .rot-ico {
+    font-size: 56px;
+    animation: rot-wiggle 1.7s ease-in-out infinite;
+  }
+  #screen-ride.active .rotate-hint b { font-size: 20px; letter-spacing: 0.02em; }
+  #screen-ride.active .rotate-hint span { color: #9fb4cc; font-size: 14px; max-width: 240px; }
+}
+@keyframes rot-wiggle {
+  0%, 100% { transform: rotate(-20deg); }
+  50% { transform: rotate(20deg); }
+}
