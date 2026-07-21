@@ -228,7 +228,7 @@ export class Flight {
       destination: C.Cartesian3.fromDegrees(sLng, sLat, 6000),
       orientation: { heading: 0, pitch: -1.45, roll: 0 },
     });
-    await this._waitForTiles(25000, onProgress); // longer preload of the spawn area
+    await this._waitForTiles(25000, onProgress, 0.4, 0.68); // preload the spawn area (ground sample)
 
     // Find the local ground so we can spawn ABOVE it (canyon/alps safe).
     this.spawnGround = 0;
@@ -256,6 +256,9 @@ export class Flight {
     this.viewer.camera.frustum.fov = 60 * D2R; // fixed FOV (per-frame changes shimmer)
     this._installLoop();
     this._updateCamera(0);
+    // Second pass: now the camera sits at the real flight viewpoint (low, looking
+    // ahead). Stream THOSE tiles in before we hand control over — no blank world.
+    await this._settleView(15000, onProgress, 0.68, 1);
     onProgress(1, "Cleared for takeoff.");
     log(`spawn ${lat.toFixed(4)},${lng.toFixed(4)}`);
   }
@@ -316,7 +319,7 @@ export class Flight {
       destination: C.Cartesian3.fromDegrees(lng0, lat0, alt0 + 600),
       orientation: { heading: 0, pitch: -1.45, roll: 0 },
     });
-    await this._waitForTiles(25000, onProgress);
+    await this._waitForTiles(25000, onProgress, 0.4, 0.68, "Loading flight…");
 
     this._addPlane();
     this._camHeading = this.heading;
@@ -326,6 +329,7 @@ export class Flight {
     this._recStart = performance.now();
     this._installLoop();
     this._updateCamera(0);
+    await this._settleView(15000, onProgress, 0.68, 1, "Loading the view ahead…");
     onProgress(1, "Playing.");
   }
 
@@ -927,29 +931,49 @@ export class Flight {
     });
   }
 
-  async _waitForTiles(timeoutMs, onProgress) {
+  _waitForTiles(timeoutMs, onProgress, p0 = 0.4, p1 = 0.7, label = "Spooling up the tiles…") {
     const tileset = this.tileset;
-    if (tileset.tilesLoaded) return;
-    await new Promise((resolve) => {
+    return new Promise((resolve) => {
       let done = false;
+      let remove = () => {};
       const finish = () => {
         if (done) return;
         done = true;
+        remove();
         resolve();
       };
-      const remove = tileset.initialTilesLoaded.addEventListener(() => {
-        remove();
-        finish();
-      });
+      if (tileset.tilesLoaded) return finish();
+      remove = tileset.initialTilesLoaded.addEventListener(finish);
       const started = performance.now();
       const poll = () => {
         if (done) return;
-        const frac = Math.min(0.95, (performance.now() - started) / timeoutMs);
-        onProgress(0.4 + frac * 0.55, "Spooling up the tiles…");
+        const frac = Math.min(1, (performance.now() - started) / timeoutMs);
+        onProgress(p0 + frac * (p1 - p0), label);
         if (tileset.tilesLoaded || performance.now() - started > timeoutMs) return finish();
         requestAnimationFrame(poll);
       };
       requestAnimationFrame(poll);
+    });
+  }
+
+  // Wait until the tiles for the CURRENT camera (the real flight view) have
+  // actually streamed in — so you never drop into a blank/low-detail world.
+  // Requires several consecutive "loaded" frames so we don't exit on the
+  // transient tilesLoaded=true that lingers right after the camera moves.
+  _settleView(timeoutMs, onProgress, p0 = 0.7, p1 = 1, label = "Loading the view ahead…") {
+    const tileset = this.tileset;
+    return new Promise((resolve) => {
+      const started = performance.now();
+      let stable = 0;
+      const poll = () => {
+        const elapsed = performance.now() - started;
+        onProgress(p0 + Math.min(1, elapsed / timeoutMs) * (p1 - p0), label);
+        stable = tileset.tilesLoaded ? stable + 1 : 0;
+        if (stable >= 10 || elapsed > timeoutMs) return resolve();
+        requestAnimationFrame(poll);
+      };
+      // Give Cesium two frames to register the new camera before we start polling.
+      requestAnimationFrame(() => requestAnimationFrame(poll));
     });
   }
 
