@@ -585,6 +585,17 @@ export class Flight {
 
   // Dispatch to the selected model.
   _step(h) {
+    // Guard the physics boundary: a single NaN from a control input (touch,
+    // tilt, throttle lever) would flow through clamp() and poison speed →
+    // position → every HUD field ("NaN km/h", "NaN m"…). Never let it in.
+    const c = this.controls;
+    if (!Number.isFinite(c.pitch)) c.pitch = 0;
+    if (!Number.isFinite(c.roll)) c.roll = 0;
+    if (!Number.isFinite(c.rudder)) c.rudder = 0;
+    if (!Number.isFinite(c.throttle)) c.throttle = 0;
+    if (!Number.isFinite(this.throttle)) this.throttle = 0.5;
+    if (!Number.isFinite(this.speed)) this.speed = this.P.cruiseKmh / 3.6;
+
     if (this.vehicleType === "balloon") this._stepBalloon(h);
     else if (this.mode === "sim") this._stepSim(h);
     else this._stepArcade(h);

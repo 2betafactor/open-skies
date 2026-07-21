@@ -216,6 +216,7 @@ function setupSearch() {
 // Softening curve for touch/tilt input: very gentle near center (expo) and a
 // reduced maximum, so the plane responds calmly instead of darting around.
 function softInput(x, soft = 0.65, gain = 0.7) {
+  if (!Number.isFinite(x)) return 0; // never feed NaN into the flight controls
   const s = Math.sign(x);
   const a = Math.min(1, Math.abs(x));
   return s * (soft * a * a * a + (1 - soft) * a) * gain;
@@ -226,7 +227,7 @@ function setupTouch() {
   if (matchMedia("(pointer: coarse)").matches || "ontouchstart" in window || navigator.maxTouchPoints > 0) {
     document.body.classList.add("touch");
   }
-  const clamp1 = (x) => Math.max(-1, Math.min(1, x));
+  const clamp1 = (x) => (Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0);
   const joy = document.getElementById("joy");
   const knob = document.getElementById("joy-knob");
   let active = false;
@@ -280,18 +281,20 @@ function setupTouch() {
     const KNOB = 30;
     let dragging = false;
     const applyFrac = (frac) => {
+      if (!Number.isFinite(frac)) frac = 0.5; // never set a NaN throttle
       frac = Math.max(0, Math.min(1, frac));
       if (app.flight) {
         app.flight.throttle = frac;
         app.flight.controls.throttle = 0; // absolute — don't let the rate control fight it
       }
       tlFill.style.height = (frac * 100).toFixed(1) + "%";
-      const travel = lever.getBoundingClientRect().height - PAD * 2 - KNOB;
+      const travel = Math.max(0, lever.getBoundingClientRect().height - PAD * 2 - KNOB);
       tlKnob.style.transform = `translateY(${(-frac * travel).toFixed(1)}px)`;
     };
     const fracFromEvent = (e) => {
       const r = lever.getBoundingClientRect();
       const travel = r.height - PAD * 2 - KNOB;
+      if (travel <= 0) return 0.5; // lever not laid out yet — avoid divide-by-zero NaN
       const y = e.clientY - (r.top + PAD + KNOB / 2);
       return 1 - y / travel;
     };
