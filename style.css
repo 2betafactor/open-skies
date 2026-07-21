@@ -873,3 +873,9 @@ body.touch .hud-btn { padding: 11px 16px; font-size: 0.95rem; }
   0%, 100% { transform: rotate(-20deg); }
   50% { transform: rotate(20deg); }
 }
+
+/* ---- Smaller, less obtrusive flight instruments on phones/tablets ---- */
+body.touch .hud-top { padding: 9px 12px; gap: 10px; }
+body.touch .hud-value { font-size: 1rem; letter-spacing: 0.2px; }
+body.touch .hud-compass { font-size: 1.2rem; }
+body.touch .hud-label { font-size: 0.52rem; letter-spacing: 1.5px; }
