@@ -619,7 +619,8 @@ button:active { transform: translateY(1px) scale(0.98); }
 .touch-controls { display: none; }
 body.touch .touch-controls { display: block; }
 
-body.touch .throttle-wrap { bottom: calc(env(safe-area-inset-bottom, 0) + 150px); }
+/* The thrust lever shows power on touch — hide the redundant middle THR bar. */
+body.touch .throttle-wrap { display: none; }
 
 .joy {
   position: absolute;

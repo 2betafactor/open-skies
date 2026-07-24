@@ -101,7 +101,6 @@ function initApp() {
   setupGeolocation();
   setupResult();
   setupTouch();
-  setupTilt();
   renderBoard("landing-board");
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
