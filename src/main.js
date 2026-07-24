@@ -213,15 +213,6 @@ function setupSearch() {
   });
 }
 
-// Softening curve for touch/tilt input: very gentle near center (expo) and a
-// reduced maximum, so the plane responds calmly instead of darting around.
-function softInput(x, soft = 0.65, gain = 0.7) {
-  if (!Number.isFinite(x)) return 0; // never feed NaN into the flight controls
-  const s = Math.sign(x);
-  const a = Math.min(1, Math.abs(x));
-  return s * (soft * a * a * a + (1 - soft) * a) * gain;
-}
-
 // ---- Touch controls (mobile / tablet) ----
 function setupTouch() {
   if (matchMedia("(pointer: coarse)").matches || "ontouchstart" in window || navigator.maxTouchPoints > 0) {
@@ -236,8 +227,8 @@ function setupTouch() {
   let R = 60;
   const steer = (roll, pitch) => {
     if (app.flight) {
-      app.flight.controls.roll = softInput(roll);
-      app.flight.controls.pitch = softInput(pitch);
+      app.flight.controls.roll = roll; // direct, responsive (clamp1 keeps it finite)
+      app.flight.controls.pitch = pitch;
     }
   };
   const start = (e) => {
@@ -349,8 +340,8 @@ function setupTilt() {
     // this is what makes tilt-flying feel like a real aircraft, not a spirit level.
     sRoll += (tr - sRoll) * 0.25;
     sPitch += (tp - sPitch) * 0.25;
-    app.flight.controls.roll = softInput(sRoll);
-    app.flight.controls.pitch = softInput(sPitch);
+    app.flight.controls.roll = sRoll;
+    app.flight.controls.pitch = sPitch;
   };
 
   const setLabel = () => {
