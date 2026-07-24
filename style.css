@@ -27,11 +27,15 @@ html, body {
   position: fixed;
   inset: 0;
   display: none;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto; /* scroll when content is taller than the screen (mobile) */
+  -webkit-overflow-scrolling: touch;
 }
 .screen.active { display: flex; }
-#screen-ride.active { display: block; }
+#screen-ride.active { display: block; overflow: hidden; }
+/* margin:auto centers the panel when it fits, but stays fully scrollable (top
+   reachable) when it's taller than the viewport — unlike justify/align center,
+   which clips the overflowing top off-screen. */
+.landing-inner, .loading-inner, .result-inner { margin: auto; }
 
 /* ---------- Buttons ---------- */
 button {
@@ -824,6 +828,19 @@ body.tilt-on #joy { display: none; }
 }
 #place-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,161,90,0.18); }
 #btn-geo { border-radius: 14px; padding: 14px 20px; }
+/* On phones/tablets: make "My location" a prominent, full-width action so it's
+   easy to find and tap (it used to be a small button squeezed off-screen). */
+body.touch #btn-geo {
+  flex: 1 1 100%;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.02rem;
+  padding: 16px 20px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(200, 161, 90, 0.32), rgba(200, 161, 90, 0.16));
+  border: 1px solid rgba(200, 161, 90, 0.65);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
 
 /* ---- Section headings ---- */
 .presets-heading {

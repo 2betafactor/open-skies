@@ -394,8 +394,11 @@ export class Flight {
     // Quality preset (sse 8, dyn:false, 4× MSAA) loaded too much and crashed the tab.
     const L = {
       performance: { res: 0.5, msaa: 1, fxaa: false, sse: 40, dyn: true, fog: 0.0004 },
-      balanced: { res: 0.8, msaa: 1, fxaa: true, sse: 18, dyn: true, fog: 0.00022 },
-      quality: { res: 1.0, msaa: 1, fxaa: true, sse: 12, dyn: true, fog: 0.00014 },
+      // Sharper than before: higher render resolution + finer tiles. dyn:true
+      // (distance falloff) stays on everywhere, so memory is still bounded — no
+      // OOM crash — the extra cost is GPU fill rate, not tile memory.
+      balanced: { res: 0.9, msaa: 1, fxaa: true, sse: 16, dyn: true, fog: 0.0002 },
+      quality: { res: 1.2, msaa: 1, fxaa: true, sse: 10, dyn: true, fog: 0.00012 },
     }[this._quality];
     if (!L) return;
     const s = this.viewer.scene;
