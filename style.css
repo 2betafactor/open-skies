@@ -654,55 +654,103 @@ body.touch .throttle-wrap { bottom: calc(env(safe-area-inset-bottom, 0) + 150px)
   pointer-events: none;
 }
 
-/* Slim vertical throttle lever — drag the knob to set power. */
+/* Airplane thrust lever — drag the grip up to accelerate, down to slow. */
 .throttle-lever {
   position: absolute;
   z-index: 12;
   right: calc(env(safe-area-inset-right, 0) + 22px);
   bottom: calc(env(safe-area-inset-bottom, 0) + 24px);
-  width: 46px;
-  height: 150px;
-  border-radius: 23px;
-  background: rgba(0, 0, 0, 0.34);
-  border: 2px solid rgba(255, 255, 255, 0.22);
+  width: 54px;
+  height: 172px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #20262f 0%, #0b0e13 100%);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.7), 0 6px 18px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   touch-action: none;
   user-select: none;
 }
+/* the slot the lever rides in */
+.throttle-lever::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  bottom: 16px;
+  width: 10px;
+  margin-left: -5px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.9);
+}
+/* thrust reading rising in the slot */
 .tl-fill {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 50%;
-  background: linear-gradient(to top, rgba(127, 176, 105, 0.6), rgba(127, 176, 105, 0.18));
+  left: 50%;
+  bottom: 16px;
+  width: 10px;
+  margin-left: -5px;
+  height: 60px;
+  background: linear-gradient(to top, #7fb069, #e0b45c);
+  border-radius: 5px;
+  box-shadow: 0 0 8px rgba(224, 180, 92, 0.5);
   pointer-events: none;
 }
+/* the grip handle */
 .tl-knob {
   position: absolute;
   left: 50%;
-  bottom: 10px;
-  width: 34px;
-  height: 30px;
-  margin-left: -17px;
-  border-radius: 9px;
-  background: rgba(200, 161, 90, 0.92);
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  bottom: 12px;
+  width: 42px;
+  height: 40px;
+  margin-left: -21px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #444b55 0%, #262b32 48%, #12151a 100%);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   pointer-events: none;
   will-change: transform;
 }
-.tl-cap {
+/* grip ridges */
+.tl-knob::before {
+  content: "";
   position: absolute;
-  top: 5px;
+  left: 7px;
+  right: 7px;
+  top: 12px;
+  bottom: 7px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.22) 0 1px,
+    rgba(0, 0, 0, 0.4) 1px 4px
+  );
+  border-radius: 3px;
+}
+/* amber cap band across the grip */
+.tl-knob::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 4px;
+  height: 4px;
+  background: var(--accent, #c8a15a);
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(200, 161, 90, 0.7);
+}
+/* MAX / IDLE markings */
+.tl-mark {
+  position: absolute;
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 0.52rem;
-  letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.42rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   pointer-events: none;
 }
+.tl-max { top: 4px; color: rgba(224, 180, 92, 0.9); }
+.tl-idle { bottom: 4px; color: rgba(255, 255, 255, 0.5); }
 
 /* ================= Tilt toggle ================= */
 .tilt-toggle {

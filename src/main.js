@@ -44,7 +44,8 @@ const PRESETS = [
   { emoji: "🗼", name: "Tokyo Bay", desc: "Odaiba & the bay", lat: 35.6329, lng: 139.8804 },
   { emoji: "🏔️", name: "Swiss Alps", desc: "Over Interlaken", lat: 46.6863, lng: 7.8632 },
   { emoji: "🏜️", name: "Grand Canyon", desc: "Down the gorge", lat: 36.0544, lng: -112.1401 },
-  { emoji: "🐪", name: "Pyramids of Giza", desc: "Over the Great Pyramid", lat: 29.9773, lng: 31.1325 },
+  { emoji: "⛵", name: "Ithaka", desc: "Odysseus's Ionian isle", lat: 38.365, lng: 20.718 },
+  { emoji: "🏞️", name: "Alyzia", desc: "Aitoloakarnanía coast", lat: 38.73, lng: 21.05 },
   { emoji: "🏔️", name: "Cape Town", desc: "Table Mountain & harbour", lat: -33.915, lng: 18.4233 },
   { emoji: "🏝️", name: "Key West", desc: "Island & turquoise sea", lat: 24.5551, lng: -81.78 },
 ];
@@ -268,8 +269,9 @@ function setupTouch() {
   const tlFill = document.getElementById("tl-fill");
   const tlKnob = document.getElementById("tl-knob");
   if (lever && tlFill && tlKnob) {
-    const PAD = 10;
-    const KNOB = 30;
+    const PAD = 12; // knob bottom inset (matches CSS)
+    const KNOB = 40; // grip height (matches CSS)
+    const SLOT = 32; // total slot inset top+bottom (matches CSS)
     let dragging = false;
     const applyFrac = (frac) => {
       if (!Number.isFinite(frac)) frac = 0.5; // never set a NaN throttle
@@ -278,14 +280,15 @@ function setupTouch() {
         app.flight.throttle = frac;
         app.flight.controls.throttle = 0; // absolute — don't let the rate control fight it
       }
-      tlFill.style.height = (frac * 100).toFixed(1) + "%";
-      const travel = Math.max(0, lever.getBoundingClientRect().height - PAD * 2 - KNOB);
+      const H = lever.getBoundingClientRect().height;
+      tlFill.style.height = Math.max(4, frac * (H - SLOT)).toFixed(1) + "px"; // thrust rises in the slot
+      const travel = Math.max(0, H - PAD * 2 - KNOB);
       tlKnob.style.transform = `translateY(${(-frac * travel).toFixed(1)}px)`;
     };
     const fracFromEvent = (e) => {
       const r = lever.getBoundingClientRect();
       const travel = r.height - PAD * 2 - KNOB;
-      if (travel <= 0) return 0.5; // lever not laid out yet — avoid divide-by-zero NaN
+      if (travel <= 0) return 0.5; // lever not laid out yet — avoid divide-by-zero
       const y = e.clientY - (r.top + PAD + KNOB / 2);
       return 1 - y / travel;
     };
