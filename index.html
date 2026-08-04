@@ -68,6 +68,7 @@
         <div class="hud-label">ALTITUDE</div>
       </div>
       <div class="hud-buttons">
+        <button id="btn-share" class="hud-btn" title="Share this view">📤</button>
         <button id="btn-tune" class="hud-btn" title="Flight tuner (g)">⚙</button>
         <button id="btn-mute" class="hud-btn" title="Mute / unmute">🔊</button>
         <button id="btn-dismount" class="hud-btn" title="Land (Esc)">Land</button>
@@ -115,7 +116,10 @@
       <div id="result-share" class="result-share" style="display:none">
         <span class="share-label">🔗 Share this flight:</span>
         <input id="share-link" readonly />
-        <button id="btn-share-copy" class="ghost small">Copy link</button>
+        <div class="share-actions">
+          <button id="btn-share-native" class="primary small">📤 Share to Instagram / TikTok…</button>
+          <button id="btn-share-copy" class="ghost small">Copy link</button>
+        </div>
       </div>
       <h3 class="board-title">🏆 Leaderboard</h3>
       <div id="result-board" class="board"></div>

@@ -155,6 +155,8 @@ export class Flight {
       infoBox: false,
       selectionIndicator: false,
       requestRenderMode: false,
+      // Keep the drawing buffer so we can grab a screenshot to share at any time.
+      contextOptions: { webgl: { preserveDrawingBuffer: true } },
     });
     const scene = this.viewer.scene;
     scene.renderError.addEventListener((s, e) => {
@@ -412,6 +414,52 @@ export class Flight {
       this.tileset.dynamicScreenSpaceError = L.dyn;
     }
     log("quality → " + this._quality);
+  }
+
+  // Grab the current 3D view as a branded PNG blob — for sharing to socials.
+  async capture() {
+    if (!this.viewer) return null;
+    const C = window.Cesium;
+    const scene = this.viewer.scene;
+    this.viewer.render(); // draw a fresh frame into the preserved buffer
+    const src = scene.canvas;
+    const w = src.width;
+    const h = src.height;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(src, 0, 0);
+
+    // Branded footer: gradient scrim + title + flight readout.
+    const fs = Math.max(20, Math.round(w * 0.03));
+    const pad = Math.round(w * 0.028);
+    const g = ctx.createLinearGradient(0, h - fs * 4.5, 0, h);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.6)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, h - fs * 4.5, w, fs * 4.5);
+
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.font = `800 ${fs}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("✈️ Open Skies", pad, h - pad);
+
+    const kmh = Math.round((this.speed || 0) * 3.6);
+    let altm = 0;
+    try {
+      altm = Math.round(C.Cartographic.fromCartesian(this.position).height);
+    } catch (e) {}
+    const label = this.locationLabel ? "over " + this.locationLabel : "";
+    const readout = [label, `${kmh} km/h · ${altm.toLocaleString()} m`].filter(Boolean).join("   ·   ");
+    ctx.font = `600 ${Math.round(fs * 0.66)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.textAlign = "right";
+    ctx.fillText(readout, w - pad, h - pad);
+    ctx.textAlign = "left";
+
+    return await new Promise((res) => c.toBlob(res, "image/png", 0.95));
   }
 
   // Choose which vehicle to fly (called before spawn).

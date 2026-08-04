@@ -102,6 +102,7 @@ function initApp() {
   setupResult();
   setupTouch();
   renderBoard("landing-board");
+  document.getElementById("btn-share").addEventListener("click", shareFlight);
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
   app.flight = new Flight("cesiumContainer");
@@ -413,6 +414,7 @@ function setLandingStatus(msg, isError = false) {
 async function takeOff(lat, lng, label, opts = {}) {
   app.cancelled = false;
   app.flying = false;
+  if (app.flight) app.flight.locationLabel = label; // used to caption shared screenshots
   // Unlock/resume audio NOW, inside the click gesture — before the tile-load
   // await — or Safari leaves the context suspended and there's no engine sound.
   app.audio.start();
@@ -546,6 +548,76 @@ function setupResult() {
     b.textContent = "Copied!";
     setTimeout(() => (b.textContent = "Copy link"), 1500);
   });
+  document.getElementById("btn-share-native").addEventListener("click", () => {
+    const link = document.getElementById("share-link").value;
+    shareLink(link, "Watch my Open Skies flight ✈️");
+  });
+}
+
+// Open the OS share sheet (Instagram, TikTok, WhatsApp, Messages…) for a link.
+async function shareLink(url, text) {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "Open Skies", text, url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      toast("Link copied — paste it into Instagram or TikTok!");
+    }
+  } catch (e) {
+    /* user dismissed the share sheet — ignore */
+  }
+}
+
+// Share the CURRENT view as an image (works any time during a flight).
+async function shareFlight() {
+  if (!app.flight) return;
+  const btn = document.getElementById("btn-share");
+  if (btn) btn.disabled = true;
+  try {
+    const blob = await app.flight.capture();
+    const label = (app.flight && app.flight.locationLabel) || "the world";
+    const url = location.origin + location.pathname;
+    const text = `Flying over ${label} on Open Skies ✈️  #OpenSkies`;
+    const file = blob && new File([blob], "open-skies.png", { type: "image/png" });
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Open Skies", text });
+    } else if (navigator.share) {
+      await navigator.share({ title: "Open Skies", text, url });
+    } else if (blob) {
+      // Desktop: no share sheet — save the image and copy the link so they can post it.
+      downloadBlob(blob, "open-skies.png");
+      if (navigator.clipboard) await navigator.clipboard.writeText(url);
+      toast("Photo saved & link copied — post it to Instagram / TikTok!");
+    }
+  } catch (e) {
+    /* cancelled or capture failed — ignore */
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+// Small transient message overlay.
+let _toastTimer = null;
+function toast(msg) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
 }
 
 function showShare(id) {

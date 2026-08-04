@@ -945,3 +945,35 @@ body.touch .hud-top { padding: 9px 12px; gap: 10px; }
 body.touch .hud-value { font-size: 1rem; letter-spacing: 0.2px; }
 body.touch .hud-compass { font-size: 1.2rem; }
 body.touch .hud-label { font-size: 0.52rem; letter-spacing: 1.5px; }
+
+/* ---- Share actions (result screen) ---- */
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.primary.small { padding: 10px 16px; font-size: 0.9rem; }
+
+/* ---- Transient toast ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0) + 24px);
+  transform: translate(-50%, 20px);
+  max-width: min(92vw, 420px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(12, 18, 26, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #eaf2ff;
+  font-size: 0.9rem;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 999;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
