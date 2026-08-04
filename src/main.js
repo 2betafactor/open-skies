@@ -101,6 +101,7 @@ function initApp() {
   setupGeolocation();
   setupResult();
   setupTouch();
+  speedFx.init();
   renderBoard("landing-board");
   document.getElementById("btn-share").addEventListener("click", shareFlight);
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
@@ -213,6 +214,75 @@ function setupSearch() {
     takeOff(loc.lat(), loc.lng(), place.name || "your flight");
   });
 }
+
+// ---- Speed FX: radial motion streaks + tunnel vignette that ramp up with
+// airspeed. Purely ambient (no UI), invisible while cruising, dramatic when fast.
+const speedFx = (() => {
+  let canvas, ctx, W = 0, H = 0, dpr = 1;
+  let streaks = [];
+  let intensity = 0, target = 0, raf = 0;
+  const rand = Math.random;
+
+  function resize() {
+    if (!canvas) return;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    H = canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+  }
+  function init() {
+    canvas = document.getElementById("speedfx");
+    if (!canvas) return;
+    ctx = canvas.getContext("2d");
+    for (let i = 0; i < 70; i++) {
+      streaks.push({ a: rand() * Math.PI * 2, r: 0.15 + rand(), sp: 0.003 + rand() * 0.01, len: 0.05 + rand() * 0.1 });
+    }
+    resize();
+    window.addEventListener("resize", resize);
+  }
+  function setSpeedFrac(f) {
+    target = Math.max(0, Math.min(1, f || 0));
+    if (!raf && (target > 0.003 || intensity > 0.003)) loop();
+  }
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    intensity += (target - intensity) * 0.07;
+    draw();
+    if (intensity < 0.004 && target < 0.004) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      if (ctx) ctx.clearRect(0, 0, W, H);
+    }
+  }
+  function draw() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2;
+    const maxR = Math.hypot(cx, cy);
+    // tunnel vignette
+    const vg = ctx.createRadialGradient(cx, cy, maxR * 0.32, cx, cy, maxR);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, `rgba(6,10,20,${0.32 * intensity})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+    // streaks flying outward from the centre
+    ctx.lineCap = "round";
+    for (const s of streaks) {
+      s.r += s.sp * (0.4 + intensity * 2.0);
+      if (s.r > 1.25) { s.r = 0.12; s.a = rand() * Math.PI * 2; }
+      const r0 = s.r * maxR;
+      const r1 = (s.r + s.len * (0.6 + intensity)) * maxR;
+      const ca = Math.cos(s.a), sa = Math.sin(s.a);
+      const fade = Math.min(1, (s.r - 0.12) * 2.2); // fade in near centre
+      ctx.strokeStyle = `rgba(255,255,255,${0.11 * intensity * fade})`;
+      ctx.lineWidth = (0.8 + s.r * 1.6) * dpr;
+      ctx.beginPath();
+      ctx.moveTo(cx + ca * r0, cy + sa * r0);
+      ctx.lineTo(cx + ca * r1, cy + sa * r1);
+      ctx.stroke();
+    }
+  }
+  return { init, resize, setSpeedFrac };
+})();
 
 // ---- Touch controls (mobile / tablet) ----
 function setupTouch() {
@@ -452,13 +522,17 @@ function beginFlight() {
   app.controller.bind();
   requestWakeLock(); // stop phones/tablets from sleeping mid-flight
   if (app._syncThrottleLever) app._syncThrottleLever(); // lever starts at cruise (0.5)
+  speedFx.resize(); // canvas now has real dimensions (ride screen is visible)
 
+  const maxKmh = (app.flight.P && app.flight.P.maxSpeedKmh) || 520;
   let lastWarn = "";
   let lastCrashes = app.flight.crashes || 0;
   app.flight.onState = (s) => {
     app.hud.update(s);
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
+    // Speed streaks ramp in above ~60% of top speed, max out near the redline.
+    speedFx.setSpeedFrac((s.speedKmh / maxKmh - 0.58) / 0.42);
     // Haptics — a real cockpit shakes. Buzz on a fresh warning, harder on impact.
     if (navigator.vibrate) {
       if ((s.crashes || 0) > lastCrashes) navigator.vibrate([90, 40, 90]);
@@ -496,6 +570,7 @@ function dismount() {
   const flight = app.flight ? app.flight.getFlight() : null;
   app.flying = false;
   releaseWakeLock();
+  speedFx.setSpeedFrac(0); // fade out the streaks
   if (app.controller) app.controller.unbind();
   if (app.flight) app.flight.dispose();
   if (app.audio) app.audio.suspend();

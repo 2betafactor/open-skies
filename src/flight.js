@@ -20,9 +20,9 @@ const SPAWN_AGL = 350; // metres ABOVE local terrain (works over canyon/alps too
 
 // Reference parameter set (human units; converted in physics).
 export const DEFAULT_PARAMS = {
-  minSpeedKmh: 50,
-  cruiseKmh: 180,
-  maxSpeedKmh: 340,
+  minSpeedKmh: 70,
+  cruiseKmh: 250,
+  maxSpeedKmh: 520,
   maxRollRateDeg: 80,
   maxPitchRateDeg: 40,
   rudderRateDeg: 25,
