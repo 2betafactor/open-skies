@@ -117,9 +117,13 @@
       <div id="result-share" class="result-share" style="display:none">
         <span class="share-label">🔗 Share this flight:</span>
         <input id="share-link" readonly />
-        <div class="share-actions">
-          <button id="btn-share-native" class="primary small">📤 Share to Instagram / TikTok…</button>
-          <button id="btn-share-copy" class="ghost small">Copy link</button>
+        <div class="share-actions" id="share-socials">
+          <button id="btn-share-native" class="soc soc-native" title="Instagram, TikTok & more">📤</button>
+          <button class="soc soc-wa" data-share="wa" title="WhatsApp">✆</button>
+          <button class="soc soc-x" data-share="x" title="X">𝕏</button>
+          <button class="soc soc-fb" data-share="fb" title="Facebook">f</button>
+          <button class="soc soc-tg" data-share="tg" title="Telegram">➤</button>
+          <button id="btn-share-copy" class="soc soc-copy" title="Copy link">🔗</button>
         </div>
       </div>
       <h3 class="board-title">🏆 Leaderboard</h3>

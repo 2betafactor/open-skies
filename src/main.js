@@ -618,14 +618,29 @@ function setupResult() {
   document.getElementById("btn-result-again").addEventListener("click", goLanding);
   document.getElementById("btn-share-copy").addEventListener("click", () => {
     const link = document.getElementById("share-link").value;
-    navigator.clipboard && navigator.clipboard.writeText(link);
-    const b = document.getElementById("btn-share-copy");
-    b.textContent = "Copied!";
-    setTimeout(() => (b.textContent = "Copy link"), 1500);
+    if (navigator.clipboard) navigator.clipboard.writeText(link);
+    toast("Link copied!");
   });
   document.getElementById("btn-share-native").addEventListener("click", () => {
     const link = document.getElementById("share-link").value;
     shareLink(link, "Watch my Open Skies flight ✈️");
+  });
+  // Direct links for platforms that support web share intents (IG/TikTok have
+  // none — they go through the native 📤 sheet above).
+  document.querySelectorAll("#share-socials [data-share]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const link = document.getElementById("share-link").value;
+      const text = "Watch my Open Skies flight ✈️";
+      const u = encodeURIComponent(link);
+      const t = encodeURIComponent(text);
+      const url = {
+        wa: `https://wa.me/?text=${encodeURIComponent(text + " " + link)}`,
+        x: `https://twitter.com/intent/tweet?text=${t}&url=${u}`,
+        fb: `https://www.facebook.com/sharer/sharer.php?u=${u}`,
+        tg: `https://t.me/share/url?url=${u}&text=${t}`,
+      }[btn.dataset.share];
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    });
   });
 }
 
