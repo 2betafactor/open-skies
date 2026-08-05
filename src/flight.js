@@ -462,6 +462,40 @@ export class Flight {
     return await new Promise((res) => c.toBlob(res, "image/png", 0.95));
   }
 
+  // Record the live view to a short video clip (Blob) for sharing. Resolves null
+  // if the browser can't record (no captureStream / MediaRecorder / codec).
+  recordClip(seconds = 10, onTick = () => {}) {
+    const canvas = this.viewer && this.viewer.scene.canvas;
+    if (!canvas || !canvas.captureStream || typeof MediaRecorder === "undefined") {
+      return Promise.resolve(null);
+    }
+    const mime = pickVideoMime();
+    if (!mime) return Promise.resolve(null);
+    let stream, rec;
+    try {
+      stream = canvas.captureStream(30);
+      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise((resolve) => {
+      rec.onstop = () => resolve(chunks.length ? new Blob(chunks, { type: mime }) : null);
+    });
+    rec.start();
+    const startT = performance.now();
+    const tick = () => {
+      if (rec.state === "inactive") return;
+      const elapsed = performance.now() - startT;
+      onTick(Math.max(0, Math.ceil(seconds - elapsed / 1000)));
+      if (elapsed >= seconds * 1000) { try { rec.stop(); } catch (e) {} return; }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    return done;
+  }
+
   // Choose which vehicle to fly (called before spawn).
   setVehicle(v) {
     // Reset to baseline first so one vehicle's params (e.g. the bird's 2.5 m
@@ -1063,6 +1097,18 @@ export class Flight {
 }
 
 // ---- helpers ----
+function pickVideoMime() {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
+  const cands = [
+    "video/mp4;codecs=h264", // best for Instagram/TikTok (Safari)
+    "video/mp4",
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+  ];
+  for (const m of cands) if (MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
 function log(m) {
   if (window.__hbLog) window.__hbLog(m);
   else console.log("[HB]", m);

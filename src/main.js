@@ -104,6 +104,8 @@ function initApp() {
   speedFx.init();
   renderBoard("landing-board");
   document.getElementById("btn-share").addEventListener("click", shareFlight);
+  document.getElementById("btn-record").addEventListener("click", recordAndShare);
+  document.getElementById("btn-fly-now").addEventListener("click", dismount); // leave replay → landing
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
   app.flight = new Flight("cesiumContainer");
@@ -710,6 +712,55 @@ function toast(msg) {
   _toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
 }
 
+// Record a 10-second video clip of the live flight, then open the share sheet.
+let _clipRecording = false;
+async function recordAndShare() {
+  if (!app.flight || _clipRecording) return;
+  _clipRecording = true;
+  const btn = document.getElementById("btn-record");
+  if (btn) btn.disabled = true;
+  showRec(true, 10);
+  try {
+    const blob = await app.flight.recordClip(10, (left) => showRec(true, left));
+    showRec(false);
+    if (!blob) {
+      toast("Video recording isn't supported on this browser — try the 📤 photo share.");
+      return;
+    }
+    const ext = blob.type.indexOf("mp4") >= 0 ? "mp4" : "webm";
+    const file = new File([blob], "open-skies-flight." + ext, { type: blob.type });
+    const text = "My Open Skies flight ✈️  #OpenSkies";
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Open Skies", text });
+    } else {
+      downloadBlob(blob, "open-skies-flight." + ext);
+      toast("Clip saved — post it to Instagram / TikTok!");
+    }
+  } catch (e) {
+    showRec(false);
+    toast("Couldn't record the clip.");
+  } finally {
+    _clipRecording = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+function showRec(on, n) {
+  let el = document.getElementById("rec-indicator");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "rec-indicator";
+    el.className = "rec-indicator";
+    el.innerHTML = '<span class="rec-dot"></span> REC <b id="rec-count"></b>s';
+    document.body.appendChild(el);
+  }
+  if (typeof n === "number") {
+    const c = el.querySelector("#rec-count");
+    if (c) c.textContent = n;
+  }
+  el.classList.toggle("show", !!on);
+}
+
 function showShare(id) {
   if (!id) return;
   const link = location.origin + location.pathname + "?flight=" + id;
@@ -720,6 +771,7 @@ function showShare(id) {
 // ---- Watch a saved flight (replay) ----
 async function watchFlight(id) {
   app.flying = false;
+  document.body.classList.add("replaying"); // hides controls, shows REPLAY + Fly now
   showScreen("ride");
   if (app.flight.viewer) app.flight.viewer.resize();
   showLoading(true, "Loading flight…");
@@ -743,6 +795,7 @@ async function watchFlight(id) {
 }
 
 function goLanding() {
+  document.body.classList.remove("replaying");
   showScreen("landing");
   renderBoard("landing-board");
 }

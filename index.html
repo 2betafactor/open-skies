@@ -54,6 +54,12 @@
     <canvas id="speedfx" class="speedfx"></canvas>
     <div id="flash" class="flash-white"></div>
 
+    <!-- Replay mode only (watching a shared/prerecorded flight) -->
+    <div id="replay-bar" class="replay-bar">
+      <span class="replay-badge">▶ REPLAY · prerecorded flight</span>
+      <button id="btn-fly-now" class="replay-fly">✈️ Fly now</button>
+    </div>
+
     <!-- HUD -->
     <div class="hud hud-top">
       <div class="hud-instrument">
@@ -69,6 +75,7 @@
         <div class="hud-label">ALTITUDE</div>
       </div>
       <div class="hud-buttons">
+        <button id="btn-record" class="hud-btn" title="Record a 10s clip to share">🎬</button>
         <button id="btn-share" class="hud-btn" title="Share this view">📤</button>
         <button id="btn-tune" class="hud-btn" title="Flight tuner (g)">⚙</button>
         <button id="btn-mute" class="hud-btn" title="Mute / unmute">🔊</button>

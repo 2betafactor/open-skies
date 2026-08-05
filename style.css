@@ -913,9 +913,73 @@ body.touch .hint { display: none; }
 .tilt-toggle { backdrop-filter: blur(4px); box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
 
 /* ---- Compact top-bar buttons for touch (must fit narrow portrait) ---- */
-body.touch .hud-btn { padding: 9px 11px; font-size: 0.88rem; }
+body.touch .hud-btn { padding: 7px 9px; font-size: 0.84rem; }
+body.touch .hud-buttons { gap: 6px; }
 body.touch #btn-tune { display: none; } /* dev-only flight tuner — hide on mobile */
 button, .joy, .throttle-lever { -webkit-tap-highlight-color: transparent; }
+
+/* ---- REC indicator (10s clip recording) ---- */
+.rec-indicator {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0) + 54px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(200, 30, 30, 0.9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.rec-indicator.show { opacity: 1; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; animation: recpulse 1s ease-in-out infinite; }
+@keyframes recpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* ---- Replay mode (watching a prerecorded flight) ---- */
+.replay-bar { display: none; }
+body.replaying .replay-bar { display: block; }
+body.replaying #touch-controls { display: none !important; } /* no joysticks in replay */
+body.replaying #btn-record,
+body.replaying #btn-share { display: none; } /* can't record/photo a replay */
+.replay-badge {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0) + 54px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+}
+.replay-fly {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0) + 28px);
+  z-index: 40;
+  background: linear-gradient(180deg, var(--accent), #a9863f);
+  color: #1a130a;
+  font-weight: 800;
+  font-size: 1.05rem;
+  padding: 14px 30px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
 
 /* ---- Mobile: rotate-to-landscape prompt (touch + portrait only) ---- */
 .rotate-hint { display: none; }
