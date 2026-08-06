@@ -1041,29 +1041,24 @@ body.touch .cesium-viewer-bottom {
 .primary.small { padding: 10px 16px; font-size: 0.9rem; }
 
 /* Round brand social buttons */
-.soc {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
+/* Three brand share pills: Instagram, TikTok, Facebook */
+.soc-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.15rem;
+  gap: 6px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-size: 0.92rem;
   font-weight: 800;
-  line-height: 1;
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  border: none;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
   transition: transform 0.08s ease, filter 0.15s ease;
 }
-.soc:hover { filter: brightness(1.12); transform: translateY(-1px); }
-.soc-native { background: linear-gradient(135deg, #feda75, #d62976 45%, #962fbf 78%, #4f5bd5); }
-.soc-wa { background: #25d366; }
-.soc-x { background: #101114; }
+.soc-pill:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.soc-ig { background: linear-gradient(135deg, #feda75, #d62976 45%, #962fbf 78%, #4f5bd5); }
+.soc-tt { background: #101114; }
 .soc-fb { background: #1877f2; }
-.soc-tg { background: #229ed9; }
-.soc-copy { background: rgba(255, 255, 255, 0.12); }
 
 /* ---- Transient toast ---- */
 .toast {
