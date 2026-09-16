@@ -103,3 +103,24 @@ Run `python3 tests/aircraft_smoke.py` with Playwright/Chromium installed to chec
 both new models, respawn, timing, idle rendering, and aircraft metadata.
 Deployment uses the user service `open-skies.service` on port 8000; restart it with
 `systemctl --user restart open-skies.service` after changing server code.
+
+## Street Run — driving game
+Select **Drive** on the home screen, or open `/drive.html`. Flying remains the
+default Google Maps game. Street Run uses its own generated city and requires no
+Google key; Cesium still loads from the CDN.
+
+Drive the original GT car through a connected street grid. Follow eight ordered
+checkpoints to finish a lap, use the minimap to find the next turn, and improve
+your best lap (saved locally on this browser). Buildings and trees have collision;
+leaving the road increases drag. There is no live traffic or real-world road data.
+
+- `W` / up: accelerate; `S` / down: brake, then reverse.
+- `A/D` / left/right: steer; Space: handbrake.
+- `R`: recover to the last checkpoint; `P` / Escape: pause.
+- Touch devices have steering, gas, brake, and reverse buttons.
+- Pause offers **Resume** and **New run**; **Change game** returns to flying.
+
+Rebuild the car with `python3 tools/build_car.py`. Run
+`python3 tests/drive_smoke.py` for handling, collision, checkpoint, pause/restart,
+mobile controls, and game selection checks. Street Run is served by the same
+`open-skies.service` deployment as the flight game.
