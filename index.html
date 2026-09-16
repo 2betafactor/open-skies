@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>✈️ Open Skies — fly over the real world</title>
-  <link rel="preconnect" href="https://maps.googleapis.com" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/cesium@1.122/Build/Cesium/Widgets/widgets.css" />
   <script>window.CESIUM_BASE_URL = "https://unpkg.com/cesium@1.122/Build/Cesium/";</script>
@@ -21,19 +20,31 @@
       <div id="vehicles" class="vehicle-row"></div>
       <div id="quality" class="quality-row"></div>
 
+      <div class="world-picker" aria-label="Flight environment">
+        <button data-world="google" aria-pressed="true">Google Maps <small>Explore the real world</small></button>
+        <button data-world="sandbox" aria-pressed="false">Sandbox <small>Practice without Maps</small></button>
+      </div>
+      <div id="sandbox-panel" class="sandbox-panel" hidden>
+        <span class="eyebrow">PRACTICE · EXPLORE · PLAY</span>
+        <h2>Meadow Airfield</h2>
+        <p>An open countryside playground. Cruise over fields, follow the golden gates, or find your own route.</p>
+        <button id="btn-sandbox" class="primary">Fly in Sandbox →</button>
+        <p class="sandbox-tip">Pass through 8 gates in order. Hold Space to level your wings.</p>
+      </div>
+      <p id="landing-status" class="landing-status" role="status"></p>
+      <div id="maps-panel">
       <div class="search-row">
         <input id="place-input" type="text" placeholder="Where do you want to fly?" autocomplete="off" />
         <button id="btn-geo" class="ghost" title="Fly from my location">📍 My location</button>
       </div>
-      <p id="landing-status" class="landing-status" role="status"></p>
-
       <h2 class="presets-heading">Or take off over</h2>
       <div id="presets" class="presets"></div>
+      </div>
 
       <h2 class="presets-heading">🏆 Leaderboard — longest flights</h2>
       <div id="landing-board" class="board"></div>
 
-      <p class="hint">Controls: <b>W/S</b> pitch · <b>A/D</b> roll · <b>Q/E</b> rudder · <b>Shift/Ctrl</b> throttle · <b>F</b> flaps · <b>V</b> arcade/sim · <b>Esc</b> land</p>
+      <p class="hint">Controls: <b>W/S</b> pitch · <b>A/D</b> roll · <b>Q/E</b> rudder · <b>Shift/Ctrl</b> throttle · <b>F</b> flaps · <b>V</b> arcade/sim · <b>Space</b> level · <b>Esc</b> finish</p>
     </div>
   </section>
 
@@ -83,6 +94,7 @@
       </div>
     </div>
 
+    <div id="course-status" class="course-status" role="status"></div>
     <div id="hud-warning" class="hud-warning"></div>
     <div id="hud-crashes" class="hud-crashes"></div>
     <div id="hud-sim" class="hud-sim"></div>

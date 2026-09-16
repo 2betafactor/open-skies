@@ -28,13 +28,15 @@ export class EngineAudio {
   }
 
   async start() {
+    this._shouldPlay = true;
     if (this._started) {
-      if (this.ctx.state === "suspended") await this.ctx.resume();
+      if (this.ctx.state === "suspended") this._resume();
       return;
     }
     const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
     this.ctx = new Ctx();
-    if (this.ctx.state === "suspended") await this.ctx.resume();
+    if (this.ctx.state === "suspended") this._resume();
     const ctx = this.ctx;
 
     this.master = ctx.createGain();
@@ -140,7 +142,12 @@ export class EngineAudio {
     return this.muted;
   }
 
+  _resume() {
+    this.ctx.resume().then(() => { if (!this._shouldPlay) this.ctx.suspend(); }).catch(() => {});
+  }
+
   suspend() {
+    this._shouldPlay = false;
     if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
   }
 }

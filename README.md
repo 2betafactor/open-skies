@@ -21,6 +21,16 @@ Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static fi
 `W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Esc` / **Land** to finish.
 
 ## Run locally
+Run `python3 server.py` and open http://localhost:8000. **Google Maps** is the
+default, with the original location search, presets, and real-world flights.
+Choose **Sandbox**, then **Fly in Sandbox**, for the optional practice environment:
+a generated airfield, fields, trees, and an eight-gate
+practice course. It makes no Google requests and requires no API key or paid map
+service. Cesium's engine and workers still load from a CDN, so an internet
+connection is required. Airfield buildings and trees are decorative; ground
+collision and respawn are enabled.
+
+For **Google Maps** mode:
 1. Get a Google Maps API key ([Cloud Console](https://console.cloud.google.com/))
    and enable: **Map Tiles API**, **Maps JavaScript API**, **Places API**.
 2. `cp config.example.js config.js` and paste your key (config.js is gitignored).
@@ -32,7 +42,7 @@ Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static fi
 4. Open http://localhost:8000
 
 ## Deploy (Railway or any host)
-`server.py` is production-ready: it listens on `$PORT` and injects the key from the
+`server.py` it listens on `$PORT` and injects the key from the
 `GOOGLE_MAPS_API_KEY` env var into `/config.js`, so **the key never lives in the
 repo**. Leaderboard scores are written to `$DATA_DIR` (mount a persistent volume
 there so they survive redeploys).
@@ -58,3 +68,38 @@ src/main.js                app state machine, vehicle/graphics/leaderboard wirin
 src/{controller,hud,audio,tuner}.js
 assets/plane.glb           aircraft model (CC0)
 ```
+
+## Audit and verification
+- App startup and Sandbox no longer depend on Google loading successfully.
+- Google scripts and tiles load only when their mode is requested; search, presets,
+  and location-based flights remain available.
+- Saved flights retain their environment; older recordings default to Google.
+- Fixed replay clock starting before scenery finished loading, score submission
+  errors appearing on the wrong screen, input capture in text fields, and time
+  formatting producing `:60`. Restored Performance graphics settings.
+- Scores reject malformed/non-finite values and invalid paths; requests are size
+  limited. Private repository files and raw score storage are not served.
+- Scores are still client reported, not cheat resistant. Flight paths retain the
+  existing 800-point recording limit (about 6 minutes 40 seconds).
+
+Run API regression tests with `python3 -m unittest discover -s tests -v`.
+With Python Playwright and Chromium installed, run `python3 tests/browser_smoke.py`
+for Google-blocked Sandbox course, replay, mobile, and mode-switch checks.
+The scene uses Cesium's [Viewer](https://cesium.com/learn/cesiumjs/ref-doc/Viewer.html)
+and [polyline entities](https://cesium.com/learn/cesiumjs/ref-doc/PolylineGraphics.html).
+
+## Aircraft and additional fixes
+Choose **Skylark**, **Swift**, or **Classic** above the map search. All use the
+original flight physics in both environments. The new GLB models are original,
+about 110 KB each, and have animated propellers. Rebuild them with
+`python3 tools/build_aircraft.py`; see `assets/README.md` for details.
+
+New recordings save the aircraft selection. Flight duration and recording cadence
+now follow simulated flight time; hidden tabs pause, and finished scenes stop
+rendering. Touch steering tracks its own pointer, audio startup avoids duplicate
+contexts, wake locks clear when released, and video recording releases its tracks.
+
+Run `python3 tests/aircraft_smoke.py` with Playwright/Chromium installed to check
+both new models, respawn, timing, idle rendering, and aircraft metadata.
+Deployment uses the user service `open-skies.service` on port 8000; restart it with
+`systemctl --user restart open-skies.service` after changing server code.

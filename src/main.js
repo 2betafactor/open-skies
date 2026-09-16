@@ -1,3 +1,4 @@
+import { VEHICLES } from "./vehicles.js";
 // main.js — app state machine (landing → loading → flying), Google Maps loader
 // (Places), Cesium flight scene, presets.
 
@@ -29,15 +30,6 @@ dlog("boot: script loaded");
 
 // ---- Preset flights (strong 3D-tile coverage) ----
 // ---- Selectable vehicles (model + mount correction + physics params) ----
-const PLANE_PARAMS = {
-  mass: 1100, wingArea: 16, maxThrust: 2600, cd0: 0.03, kInduced: 0.05, clMax: 1.45,
-  maxRollRateDeg: 80, maxPitchRateDeg: 40, turnFactor: 0.7,
-  cruiseKmh: 180, minSpeedKmh: 50, maxSpeedKmh: 340,
-  camBack: 40, camUp: 12, camRollFollow: 0, flapForce: 0,
-};
-const VEHICLES = [
-  { id: "plane", emoji: "✈️", name: "Plane", type: "plane", uri: "assets/plane.glb", scale: 0.09, yaw: -105, pitch: 0, roll: 0, params: PLANE_PARAMS },
-];
 
 const PRESETS = [
   { emoji: "🏙️", name: "Manhattan", desc: "Skyscraper canyons", lat: 40.758, lng: -73.9855 },
@@ -64,40 +56,48 @@ const app = {
 };
 
 const QUALITY = [
+  { id: "performance", label: "Performance" },
   { id: "balanced", label: "Balanced" },
   { id: "quality", label: "Max Quality" },
 ];
 
 // ================= Google Maps loader =================
-window.initApp = initApp;
-
-(function loadMaps() {
-  const cfg = window.HORSEBACK_CONFIG;
-  if (!cfg || !cfg.GOOGLE_MAPS_API_KEY || cfg.GOOGLE_MAPS_API_KEY === "YOUR_API_KEY_HERE") {
-    showError("No Google Maps API key found. Copy config.example.js to config.js and add your key.");
-    return;
+let mapsPromise;
+function loadMaps() {
+  if (mapsPromise) return mapsPromise;
+  const key = window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY;
+  if (!key || key === "YOUR_API_KEY_HERE") return Promise.reject(new Error("Google Maps needs an API key. Sandbox is ready to fly without one."));
+  mapsPromise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Google Maps timed out. Try Sandbox or retry.")), 15000);
+    window.initMaps = () => { clearTimeout(timer); if (!app.autocomplete) setupSearch(); resolve(); };
+    const script = document.createElement("script");
+    script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places&callback=initMaps&loading=async";
+    script.onerror = () => { clearTimeout(timer); reject(new Error("Google Maps could not load. Sandbox is still available.")); };
+    document.head.appendChild(script);
+  }).catch(e => { mapsPromise = null; throw e; });
+  return mapsPromise;
+}
+async function selectWorld(world) {
+  app.world = world;
+  document.querySelectorAll("[data-world]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.world === world)));
+  document.getElementById("sandbox-panel").hidden = world !== "sandbox";
+  document.getElementById("maps-panel").hidden = world !== "google";
+  setLandingStatus("");
+  if (world === "google") {
+    try { await loadMaps(); } catch (e) { if (app.world === "google") setLandingStatus(e.message, true); }
   }
-  if (!window.Cesium) {
-    showError("Cesium failed to load (check your network).");
-    return;
-  }
-  const s = document.createElement("script");
-  s.src =
-    "https://maps.googleapis.com/maps/api/js?key=" +
-    encodeURIComponent(cfg.GOOGLE_MAPS_API_KEY) +
-    "&libraries=places&callback=initApp&loading=async";
-  s.async = true;
-  s.onerror = () => showError("Failed to load Google Maps. Check your key and network.");
-  document.head.appendChild(s);
-})();
+}
 
 // ================= Init =================
 function initApp() {
-  dlog("maps loaded; init");
+  dlog("initializing independent flight modes");
+  app.world = "google";
+  document.querySelectorAll("[data-world]").forEach(b => b.addEventListener("click", () => selectWorld(b.dataset.world)));
+  document.getElementById("btn-sandbox").addEventListener("click", () => takeOff(0, 0, "Meadow Airfield"));
   renderVehicles();
   renderQuality();
   renderPresets();
-  setupSearch();
+
   setupGeolocation();
   setupResult();
   setupTouch();
@@ -113,18 +113,7 @@ function initApp() {
     const msg = (e && (e.message || e.toString())) || "unknown";
     showError("3D render error: " + msg + " (details in console, F12)");
   };
-  dlog("creating Cesium viewer + 3D tileset…");
-  app.sceneReady = app.flight
-    .init(window.HORSEBACK_CONFIG.GOOGLE_MAPS_API_KEY)
-    .then((f) => {
-      dlog("3D tileset ready");
-      return f;
-    })
-    .catch((err) => {
-      dlog("TILESET FAILED: " + (err && (err.message || err)), true);
-      showError("Couldn't start Google 3D Tiles. Ensure the Map Tiles API is enabled, then reload.");
-      throw err;
-    });
+  app.sceneReady = Promise.resolve();
 
   app.hud = new HUD({
     onMute: () => app.hud.setMuted(app.audio.toggleMute()),
@@ -146,7 +135,10 @@ function initApp() {
   // Shared flight link → jump straight into the replay.
   const sharedId = new URLSearchParams(location.search).get("flight");
   if (sharedId) app.sceneReady.then(() => watchFlight(sharedId)).catch(() => showScreen("landing"));
-  else showScreen("landing");
+  else {
+    showScreen("landing");
+    selectWorld("google");
+  }
 }
 
 // ================= Landing =================
@@ -159,11 +151,13 @@ function renderVehicles() {
   }
   for (const v of VEHICLES) {
     const btn = document.createElement("button");
+    btn.setAttribute("aria-pressed", String(v.id === app.vehicle.id));
     btn.className = "vehicle-btn" + (v.id === app.vehicle.id ? " active" : "");
     btn.innerHTML = `<span class="v-emoji">${v.emoji}</span><span class="v-name">${v.name}</span>`;
     btn.addEventListener("click", () => {
       app.vehicle = v;
-      for (const b of wrap.children) b.classList.remove("active");
+      for (const b of wrap.children) { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); }
+      btn.setAttribute("aria-pressed", "true");
       btn.classList.add("active");
     });
     wrap.appendChild(btn);
@@ -298,6 +292,7 @@ function setupTouch() {
   let cx = 0;
   let cy = 0;
   let R = 60;
+  let steeringPointer = null;
   const steer = (roll, pitch) => {
     if (app.flight) {
       app.flight.controls.roll = roll; // direct, responsive (clamp1 keeps it finite)
@@ -305,6 +300,9 @@ function setupTouch() {
     }
   };
   const start = (e) => {
+    if (active) return;
+    steeringPointer = e.pointerId;
+    joy.setPointerCapture(e.pointerId);
     active = true;
     const r = joy.getBoundingClientRect();
     cx = r.left + r.width / 2;
@@ -313,7 +311,7 @@ function setupTouch() {
     move(e);
   };
   const move = (e) => {
-    if (!active) return;
+    if (!active || e.pointerId !== steeringPointer) return;
     let dx = e.clientX - cx;
     let dy = e.clientY - cy;
     const d = Math.hypot(dx, dy) || 1;
@@ -324,11 +322,14 @@ function setupTouch() {
     knob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
     steer(clamp1(dx / R), clamp1(-dy / R)); // push up = pitch up
   };
-  const end = () => {
+  const end = (e) => {
+    if (!active || (e?.pointerId != null && e.pointerId !== steeringPointer)) return;
+    steeringPointer = null;
     active = false;
     knob.style.transform = "translate(0,0)";
     steer(0, 0);
   };
+  window.addEventListener("blur", () => end());
   joy.addEventListener("pointerdown", start);
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", end);
@@ -484,6 +485,8 @@ function setLandingStatus(msg, isError = false) {
 
 // ================= Take off =================
 async function takeOff(lat, lng, label, opts = {}) {
+  if (app.loading) return;
+  app.loading = true;
   app.cancelled = false;
   app.flying = false;
   if (app.flight) app.flight.locationLabel = label; // used to caption shared screenshots
@@ -496,7 +499,7 @@ async function takeOff(lat, lng, label, opts = {}) {
   showLoading(true, `Prepping flight over ${label}…`);
 
   try {
-    await app.sceneReady;
+    await app.flight.init(window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY, app.world);
     if (app.cancelled) return;
 
     app.flight.setQuality(app.quality);
@@ -513,7 +516,11 @@ async function takeOff(lat, lng, label, opts = {}) {
     if (app.cancelled) return;
     showLoading(false);
     showScreen("landing");
+    app.audio.suspend();
     setLandingStatus(err.message || "Couldn't start that flight. Try another spot.", true);
+  } finally {
+    app.loading = false;
+    if (app.cancelled) app.flight.dispose();
   }
 }
 
@@ -531,6 +538,7 @@ function beginFlight() {
   let lastCrashes = app.flight.crashes || 0;
   app.flight.onState = (s) => {
     app.hud.update(s);
+    document.getElementById("course-status").textContent = app.world === "sandbox" ? app.flight.sandbox.status(app.flight.position) : "Google Maps · free flight";
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
     // Speed streaks ramp in above ~60% of top speed, max out near the redline.
@@ -552,7 +560,12 @@ function beginFlight() {
 let _wakeLock = null;
 async function requestWakeLock() {
   try {
-    if ("wakeLock" in navigator) _wakeLock = await navigator.wakeLock.request("screen");
+    if ("wakeLock" in navigator) {
+      const lock = await navigator.wakeLock.request("screen");
+      if (!app.flying) { await lock.release(); return; }
+      _wakeLock = lock;
+      lock.addEventListener("release", () => { if (_wakeLock === lock) _wakeLock = null; });
+    }
   } catch (e) {
     /* not supported / denied — harmless */
   }
@@ -608,13 +621,14 @@ function setupResult() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, ...app.lastFlight }),
       });
+      if (!res.ok) throw new Error("Score submission failed");
       const data = await res.json(); // { id, board }
       renderBoardData("result-board", data.board, name.toUpperCase());
       document.getElementById("result-submit-row").style.display = "none";
       showShare(data.id);
     } catch (e) {
       btn.disabled = false;
-      setLandingStatus("Couldn't submit score (server offline?).", true);
+      toast("Couldn’t submit your score. Please retry.");
     }
   });
   document.getElementById("btn-result-again").addEventListener("click", goLanding);
@@ -763,6 +777,9 @@ function showShare(id) {
 
 // ---- Watch a saved flight (replay) ----
 async function watchFlight(id) {
+  if (app.loading) return;
+  app.loading = true;
+  app.cancelled = false;
   app.flying = false;
   document.body.classList.add("replaying"); // hides controls, shows REPLAY + Fly now
   showScreen("ride");
@@ -773,17 +790,26 @@ async function watchFlight(id) {
     const r = await fetch("/api/flight?id=" + encodeURIComponent(id));
     const flight = await r.json();
     if (!flight || !flight.path || !flight.path.length) throw new Error("not found");
+    if (app.cancelled) return;
+    await app.flight.init(window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY, flight.world || "google");
+    document.getElementById("course-status").textContent = (flight.world === "sandbox" ? "Sandbox" : "Google Maps") + " · replay";
+    if (app.cancelled) return;
+    app.flight.onState = s => app.hud.update(s);
     app.flight.onReplayEnd = () => {
       app.flight.dispose();
       goLanding();
     };
-    await app.flight.startReplay(flight.path, (f, l) => setLoading(f, l));
+    await app.flight.startReplay(flight.path, (f, l) => setLoading(f, l), flight.vehicle || "plane");
+    if (app.cancelled) return;
     showLoading(false);
   } catch (e) {
     console.error(e);
     showLoading(false);
     goLanding();
-    setLandingStatus("Couldn't load that flight.", true);
+    setLandingStatus("Couldn’t load that flight. Google replays need a Maps key; Sandbox replays do not.", true);
+  } finally {
+    app.loading = false;
+    if (app.cancelled) app.flight.dispose();
   }
 }
 
@@ -817,7 +843,7 @@ function renderBoardData(elId, data, highlight) {
         <span class="board-rank">${medal[i] || i + 1}</span>
         <span class="board-name">${escapeHtml(s.name)}</span>
         <span class="board-dist">${(s.distanceKm || 0).toFixed(1)} km</span>
-        ${s.id ? `<button class="board-watch" data-id="${s.id}" title="Watch this flight">▶</button>` : ""}
+        ${s.id ? `<button class="board-watch" data-id="${escapeHtml(s.id)}" title="Watch this flight">▶</button>` : ""}
       </div>`
     )
     .join("");
@@ -830,13 +856,16 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function formatTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
   const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
+  const s = sec % 60;
   return m + ":" + String(s).padStart(2, "0");
 }
 
 function cancelLoading() {
   app.cancelled = true;
+  app.audio.suspend();
+  document.body.classList.remove("replaying");
   if (app.controller) app.controller.unbind();
   if (app.flight) app.flight.dispose(); // tear down the loop/entity if spawn already ran
   showScreen("landing");
@@ -865,3 +894,6 @@ function showError(msg) {
   el.textContent = msg;
   el.classList.add("show");
 }
+
+if (window.Cesium) initApp();
+else showError("The 3D engine could not load. Check your connection and reload.");

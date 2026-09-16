@@ -4,7 +4,8 @@
 # - Injects the Google Maps key from $GOOGLE_MAPS_API_KEY into /config.js, so the
 #   key lives in env vars, not in the repo.
 # - Stores scores in $DATA_DIR (attach a Railway volume there to persist them).
-import json, os, threading, uuid
+import json, os, threading, uuid, math
+from urllib.parse import urlsplit
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +25,7 @@ def load():
 
 
 def save(scores):
+    os.makedirs(DATA, exist_ok=True)
     tmp = SCORES + ".tmp"
     with open(tmp, "w") as f:
         json.dump(scores, f)
@@ -58,6 +60,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/config.js" or self.path.startswith("/config.js?"):
+            if not API_KEY:
+                try:
+                    with open(os.path.join(BASE, "config.js")) as f:
+                        return self._text(f.read())
+                except FileNotFoundError:
+                    pass
             return self._text('window.HORSEBACK_CONFIG = { GOOGLE_MAPS_API_KEY: %s };' % json.dumps(API_KEY))
         if self.path.startswith("/api/flight"):
             fid = ""
@@ -72,13 +80,39 @@ class Handler(SimpleHTTPRequestHandler):
             with LOCK:
                 top = sorted(load(), key=lambda x: -x.get("distanceKm", 0))[:20]
             return self._json([{k: v for k, v in e.items() if k != "path"} for e in top])
+        # Serve only public game assets, never source data or repository files.
+        path = urlsplit(self.path).path
+        if path not in ("/", "/index.html", "/style.css", "/favicon.ico") and not path.startswith(("/src/", "/assets/")):
+            return self._json({"error": "not found"}, 404)
+        if ".." in path or "%" in path or path.endswith("/") and path != "/":
+            return self._json({"error": "not found"}, 404)
         return super().do_GET()
 
     def do_POST(self):
         if self.path.startswith("/api/scores"):
             try:
                 n = int(self.headers.get("Content-Length", 0))
-                data = json.loads(self.rfile.read(n) or b"{}")
+                if n <= 0 or n > 256000:
+                    return self._json({"error": "invalid payload size"}, 413)
+                data = json.loads(self.rfile.read(n))
+                if not isinstance(data, dict):
+                    raise ValueError("expected object")
+                for key in ("distanceKm", "timeSec", "topSpeedKmh"):
+                    value = data.get(key, 0)
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                        raise ValueError("invalid statistic")
+                path = data.get("path", [])
+                if not isinstance(path, list) or len(path) > 800:
+                    raise ValueError("invalid path")
+                for point in path:
+                    if not isinstance(point, list) or len(point) != 4 or any(isinstance(v, bool) or not isinstance(v, (int,float)) or not math.isfinite(v) for v in point):
+                        raise ValueError("invalid point")
+                    if not -180 <= point[0] <= 180 or not -90 <= point[1] <= 90:
+                        raise ValueError("invalid coordinates")
+                if data.get("vehicle", "plane") not in ("plane", "skylark", "swift"):
+                    raise ValueError("invalid vehicle")
+                if data.get("world", "google") not in ("google", "sandbox"):
+                    raise ValueError("invalid world")
             except Exception:
                 return self._json({"error": "bad json"}, 400)
             name = "".join(c for c in str(data.get("name", "")) if c.isalnum() or c in " -_")[:10] or "PILOT"
@@ -92,6 +126,8 @@ class Handler(SimpleHTTPRequestHandler):
                 "timeSec": int(float(data.get("timeSec", 0) or 0)),
                 "topSpeedKmh": int(float(data.get("topSpeedKmh", 0) or 0)),
                 "path": path[:800],
+                "world": data.get("world", "google"),
+                "vehicle": data.get("vehicle", "plane"),
             }
             with LOCK:
                 scores = load()

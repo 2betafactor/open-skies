@@ -1,3 +1,5 @@
+import { VEHICLES } from "./vehicles.js";
+import { Sandbox } from "./sandbox.js";
 // flight.js — arcade flight engine over Google Photorealistic 3D Tiles (Cesium).
 // Implements the "feel guide" reference model: rotational inertia, energy
 // exchange, velocity-lag, input shaping, spring auto-level, fixed 120 Hz step.
@@ -139,7 +141,18 @@ export class Flight {
     this._warned = false;
   }
 
-  async init(key) {
+  async init(key, world = "sandbox") {
+    if (world === "google" && (!key || key === "YOUR_API_KEY_HERE")) throw new Error("Google Maps needs an API key. Choose Sandbox to fly without one.");
+    if (this.viewer && this.world === world) { this.viewer.useDefaultRenderLoop = true; return this; }
+    if (this.viewer) {
+      this._teardown();
+      this.sandbox?.destroy();
+      this.sandbox = null;
+      this.viewer.destroy();
+      this.viewer = null;
+      this.tileset = null;
+    }
+    this.world = world;
     const C = window.Cesium;
     C.Ion.defaultAccessToken = undefined;
     this.viewer = new C.Viewer(this.containerId, {
@@ -163,7 +176,8 @@ export class Flight {
       console.error("Cesium render error:", e);
       this.onError(e);
     });
-    scene.globe.show = false;
+    scene.globe.show = world === "sandbox";
+    scene.globe.baseColor = C.Color.fromCssColorString("#58784c");
     scene.skyAtmosphere.show = true; // blue sky (not black)
     scene.skyBox.show = false; // daytime — no starfield
     scene.backgroundColor = C.Color.fromCssColorString("#8fbce8"); // sky blue fallback
@@ -182,7 +196,13 @@ export class Flight {
       intensity: 2.4,
     });
 
-    this.tileset = await createGoogleTileset(C, key);
+    if (world === "sandbox") {
+      this.sandbox = new Sandbox(this.viewer);
+      this.setQuality(this._quality);
+      return this;
+    }
+    try { this.tileset = await createGoogleTileset(C, key); }
+    catch (e) { this.viewer.destroy(); this.viewer = null; throw e; }
     // Perf: coarser tiles = far less geometry to stream + draw. 16 is the default
     // (very heavy); 32 is much lighter and still fine at altitude.
     // Streaming/cache: keep loaded tiles resident so re-flying an area doesn't
@@ -234,7 +254,7 @@ export class Flight {
 
     // Find the local ground so we can spawn ABOVE it (canyon/alps safe).
     this.spawnGround = 0;
-    try {
+    if (this.world !== "sandbox") try {
       const carto = C.Cartographic.fromDegrees(sLng, sLat);
       const [res] = await this.viewer.scene.sampleHeightMostDetailed([carto]);
       if (res && isFinite(res.height)) this.spawnGround = res.height;
@@ -252,6 +272,7 @@ export class Flight {
     this._thrustN = this.throttle * this.P.maxThrust;
     log(`ground ${Math.round(this.spawnGround)}m → spawn ${Math.round(this.spawnGround + SPAWN_AGL)}m`);
 
+    this.sandbox?.reset();
     this._addPlane();
 
     this._camHeading = this.heading;
@@ -270,7 +291,7 @@ export class Flight {
     this.plane = this.viewer.entities.add({
       position: new C.CallbackProperty(() => this.position, false),
       orientation: new C.CallbackProperty(() => this.orientation, false),
-      model: { uri: this._uri, scale: this._scale, minimumPixelSize: 64, runAnimations: false },
+      model: { uri: this._uri, scale: this._scale, minimumPixelSize: 64, runAnimations: true },
     });
   }
 
@@ -303,11 +324,11 @@ export class Flight {
   }
 
   // ---- Replay a saved flight plan ----
-  async startReplay(path, onProgress = () => {}) {
+  async startReplay(path, onProgress = () => {}, vehicleId = "plane") {
     const C = window.Cesium;
     this._teardown();
     if (!path || path.length < 2) throw new Error("This flight has no recorded path.");
-    this.setVehicle({ uri: "assets/plane.glb", scale: 0.09, yaw: -105, type: "plane", params: {} });
+    this.setVehicle(VEHICLES.find(v => v.id === vehicleId) || VEHICLES.find(v => v.id === "plane"));
     const [lng0, lat0, alt0, hdg0] = path[0];
     this.spawnLL = { lat: lat0, lng: lng0 };
     this.heading = hdg0 || 0;
@@ -328,17 +349,20 @@ export class Flight {
     this.viewer.camera.frustum.fov = 60 * D2R;
     this._recording = path;
     this._recDur = (path.length - 1) * this._pathDt;
-    this._recStart = performance.now();
+    this._recElapsed = 0;
+    this._replayReady = false;
     this._installLoop();
     this._updateCamera(0);
     await this._settleView(15000, onProgress, 0.68, 1, "Loading the view ahead…");
+    this._replayReady = true;
     onProgress(1, "Playing.");
   }
 
-  _stepReplay() {
+  _stepReplay(dt) {
+    if (!this._replayReady) return;
     const C = window.Cesium;
     const path = this._recording;
-    const elapsed = (performance.now() - this._recStart) / 1000;
+    const elapsed = this._recElapsed += dt;
     if (elapsed >= this._recDur) {
       this._recording = null;
       const cb = this.onReplayEnd;
@@ -369,23 +393,27 @@ export class Flight {
     this.path = [];
     this._pathAcc = 0;
     this._flightStart = performance.now();
+    this._elapsed = 0;
+    const c = window.Cesium.Cartographic.fromCartesian(this.position);
+    this.path.push([c.longitude / D2R, c.latitude / D2R, c.height, this.heading]);
     log("takeoff");
   }
 
   getStats() {
     return {
       distanceKm: this.distance,
-      timeSec: this._flightStart ? (performance.now() - this._flightStart) / 1000 : 0,
+      timeSec: this._elapsed || 0,
       topSpeedKmh: Math.round(this.topSpeedKmh),
     };
   }
 
   getFlight() {
-    return { ...this.getStats(), path: this.path };
+    return { ...this.getStats(), path: this.path, world: this.world, vehicle: this.vehicleId || "plane" };
   }
 
   dispose() {
     this._teardown();
+    if (this.viewer) this.viewer.useDefaultRenderLoop = false;
   }
 
   // Graphics level — the real FPS lever (draws fewer pixels + less tile geometry).
@@ -476,12 +504,15 @@ export class Flight {
       stream = canvas.captureStream(30);
       rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
     } catch (e) {
+      stream?.getTracks().forEach(track => track.stop());
       return Promise.resolve(null);
     }
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
     const done = new Promise((resolve) => {
-      rec.onstop = () => resolve(chunks.length ? new Blob(chunks, { type: mime }) : null);
+      const cleanup = () => stream.getTracks().forEach(track => track.stop());
+      rec.onstop = () => { cleanup(); resolve(chunks.length ? new Blob(chunks, { type: mime }) : null); };
+      rec.onerror = () => { cleanup(); resolve(null); };
     });
     rec.start();
     const startT = performance.now();
@@ -490,9 +521,9 @@ export class Flight {
       const elapsed = performance.now() - startT;
       onTick(Math.max(0, Math.ceil(seconds - elapsed / 1000)));
       if (elapsed >= seconds * 1000) { try { rec.stop(); } catch (e) {} return; }
-      requestAnimationFrame(tick);
+      setTimeout(tick, 100);
     };
-    requestAnimationFrame(tick);
+    setTimeout(tick, 100);
     return done;
   }
 
@@ -500,6 +531,7 @@ export class Flight {
   setVehicle(v) {
     // Reset to baseline first so one vehicle's params (e.g. the bird's 2.5 m
     // camera) never bleed into the next (the balloon had no params of its own).
+    this.vehicleId = v.id || "plane";
     Object.assign(this.P, DEFAULT_PARAMS);
     this._uri = v.uri;
     this._scale = v.scale;
@@ -536,6 +568,7 @@ export class Flight {
   _installLoop() {
     this._preUpdate = () => {
       try {
+        if (document.hidden) { this._lastT = 0; return; }
         const now = performance.now();
         if (!this._lastT) this._lastT = now;
         let frameDt = (now - this._lastT) / 1000;
@@ -550,7 +583,7 @@ export class Flight {
         this._updateCamera(frameDt);
 
         if (this._recording) {
-          this._stepReplay();
+          this._stepReplay(frameDt);
           this._recomputeOrientation();
         } else if (this._running) {
           let dt = frameDt;
@@ -564,12 +597,13 @@ export class Flight {
           // Orientation only needs the FINAL pose — build it once per frame.
           this._recomputeOrientation();
           // Leaderboard stats + flight-plan recording.
-          this.distance += (this.speed * frameDt) / 1000; // km
+          this.distance += (this.speed * dt) / 1000; // km
           const kmh = this.speed * 3.6;
           if (kmh > this.topSpeedKmh) this.topSpeedKmh = kmh;
-          this._pathAcc += frameDt;
+          this._elapsed += dt;
+          this._pathAcc += dt;
           if (this._pathAcc >= this._pathDt && this.path.length < 800) {
-            this._pathAcc = 0;
+            this._pathAcc -= this._pathDt;
             const c = window.Cesium.Cartographic.fromCartesian(this.position);
             this.path.push([
               +window.Cesium.Math.toDegrees(c.longitude).toFixed(6),
@@ -716,6 +750,7 @@ export class Flight {
       this._sampleGround();
     }
     this.agl = this._groundValid ? this._aglFilt : 9999;
+    if (this.world === "sandbox" && this.alt < FLOOR_CRASH) { this._crash(); return true; }
     if (this._groundValid && this.agl < 4 && this._vspeed <= 0) {
       this._vspeed = 0;
       addScaled(this.position, b.u, 4 - this.agl); // rest ~4 m over ground, no crash
@@ -852,6 +887,7 @@ export class Flight {
       this._sampleGround();
     }
     this.agl = this._groundValid ? this._aglFilt : 9999;
+    if (this.world === "sandbox" && this.alt < FLOOR_CRASH) { this._crash(); return true; }
 
     const now = performance.now();
     const grace = now < this._graceUntil;
@@ -954,6 +990,11 @@ export class Flight {
 
   _sampleGround() {
     const C = window.Cesium;
+    if (this.world === "sandbox") {
+      this._aglFilt = this.alt;
+      this._groundValid = true;
+      return;
+    }
     let ok = false;
     try {
       if (this.viewer.scene.sampleHeightSupported) {
@@ -1005,6 +1046,7 @@ export class Flight {
   }
 
   _setPositionLL(lat, lng, alt) {
+    this.alt = alt;
     this.position = window.Cesium.Cartesian3.fromDegrees(lng, lat, alt);
   }
 
@@ -1029,6 +1071,7 @@ export class Flight {
 
   _waitForTiles(timeoutMs, onProgress, p0 = 0.4, p1 = 0.7, label = "Spooling up the tiles…") {
     const tileset = this.tileset;
+    if (!tileset) return Promise.resolve();
     return new Promise((resolve) => {
       let done = false;
       let remove = () => {};
@@ -1058,6 +1101,7 @@ export class Flight {
   // transient tilesLoaded=true that lingers right after the camera moves.
   _settleView(timeoutMs, onProgress, p0 = 0.7, p1 = 1, label = "Loading the view ahead…") {
     const tileset = this.tileset;
+    if (!tileset) return Promise.resolve();
     return new Promise((resolve) => {
       const started = performance.now();
       let stable = 0;

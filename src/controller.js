@@ -40,6 +40,7 @@ export class Controller {
   }
 
   _down(e) {
+    if (e.target?.matches("input, textarea, select, [contenteditable=true]")) return;
     if (e.code === "Escape") return this.onDismount();
     if (e.code === "KeyF" && !e.repeat) this.onFlaps();
     if (e.code === "KeyV" && !e.repeat) this.onToggleMode();
