@@ -1,13 +1,13 @@
-import { ensureEngine } from "./engine.js";
-import { VEHICLES } from "./vehicles.js";
+import { ensureEngine } from "./engine.js?v=hangar3";
+import { VEHICLES } from "./vehicles.js?v=hangar3";
 // main.js — app state machine (landing → loading → flying), Google Maps loader
 // (Places), Cesium flight scene, presets.
 
-import { Flight, DEFAULT_PARAMS } from "./flight.js";
-import { Controller } from "./controller.js";
-import { EngineAudio } from "./audio.js";
-import { HUD } from "./hud.js";
-import { buildTuner } from "./tuner.js";
+import { Flight, DEFAULT_PARAMS } from "./flight.js?v=hangar3";
+import { Controller } from "./controller.js?v=hangar3";
+import { EngineAudio } from "./audio.js?v=hangar3";
+import { HUD } from "./hud.js?v=hangar3";
+import { buildTuner } from "./tuner.js?v=hangar3";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -964,7 +964,7 @@ function setupInspection() {
     try {
       await ensureEngine();
       if (current !== generation || !dialog.open) return;
-      const { Hangar } = await import("./hangar.js");
+      const { Hangar } = await import("./hangar.js?v=hangar3");
       if (current !== generation || !dialog.open) return;
       hangar = new Hangar("inspect-stage");
       await hangar.show(app.vehicle);

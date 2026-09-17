@@ -1,5 +1,5 @@
-import { VEHICLES } from "./vehicles.js";
-import { Sandbox } from "./sandbox.js";
+import { VEHICLES } from "./vehicles.js?v=hangar3";
+import { Sandbox } from "./sandbox.js?v=hangar3";
 // flight.js — arcade flight engine over Google Photorealistic 3D Tiles (Cesium).
 // Implements the "feel guide" reference model: rotational inertia, energy
 // exchange, velocity-lag, input shaping, spring auto-level, fixed 120 Hz step.

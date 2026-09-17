@@ -11,7 +11,8 @@
   destination and aircraft. Unconfirmed search text disables takeoff until a
   suggestion or preset is selected. Real world remains the default.
 - **Returning users could receive cached presentation files.** Static files now
-  require cache revalidation, and the updated model and preview URLs are versioned.
+  require cache revalidation. Entry scripts, module imports, styles, models, and
+  previews also use versioned URLs to avoid mixing old and new releases.
   The footer identifies this interface as Hangar / 03.
 - **The menu depended on a large 3D engine download.** The engine now loads when
   flying, replaying, or opening 3D inspection. Browsing the menu and aircraft

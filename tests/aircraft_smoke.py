@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory() as data:
   page.on('console',lambda m:errors.append(m.text) if m.type=='error' and 'Failed to load resource' not in m.text else None)
   page.route('**/*google*',lambda r:r.abort())
   page.goto(f'http://localhost:{http.server_port}',wait_until='networkidle')
-  awaitable='''async () => {const {Flight}=await import('/src/flight.js'); const start=Flight.prototype.start; Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}'''
+  awaitable='''async () => {const {Flight}=await import('/src/flight.js?v=hangar3'); const start=Flight.prototype.start; Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}'''
   page.evaluate(awaitable)
   page.click('[data-world="sandbox"]')
   page.click('#btn-sandbox')
