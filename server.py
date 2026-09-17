@@ -36,6 +36,11 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=BASE, **k)
 
+    def end_headers(self):
+        if urlsplit(self.path).path not in ("/config.js",) and not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def log_message(self, *a):
         pass
 

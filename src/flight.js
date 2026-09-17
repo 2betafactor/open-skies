@@ -78,6 +78,7 @@ export class Flight {
     this._uri = PLANE_URI;
     this._scale = PLANE_SCALE;
     this.vehicleType = "plane"; // "plane" | "heli" | "balloon"
+    this.cameraView = "chase";
     this._quality = "balanced"; // graphics level; default
 
     this.controls = { pitch: 0, roll: 0, rudder: 0, throttle: 0, level: false };
@@ -139,6 +140,7 @@ export class Flight {
     this._running = false;
     this._preUpdate = null;
     this._warned = false;
+    this._loadId = 0;
   }
 
   async init(key, world = "sandbox") {
@@ -221,6 +223,7 @@ export class Flight {
   async spawn(lat, lng, onProgress = () => {}, opts = {}) {
     const C = window.Cesium;
     this._teardown();
+    const loadId = ++this._loadId;
 
     const sLat = lat;
     const sLng = lng;
@@ -250,7 +253,8 @@ export class Flight {
       destination: C.Cartesian3.fromDegrees(sLng, sLat, 6000),
       orientation: { heading: 0, pitch: -1.45, roll: 0 },
     });
-    await this._waitForTiles(25000, onProgress, 0.4, 0.68); // preload the spawn area (ground sample)
+    await this._waitForTiles(25000, onProgress, 0.4, 0.68);
+    if (loadId !== this._loadId) throw new Error("Flight cancelled"); // preload the spawn area (ground sample)
 
     // Find the local ground so we can spawn ABOVE it (canyon/alps safe).
     this.spawnGround = 0;
@@ -261,6 +265,7 @@ export class Flight {
     } catch (e) {
       /* fall back to 0 */
     }
+    if (loadId !== this._loadId) throw new Error("Flight cancelled");
     this._setPositionLL(sLat, sLng, this.spawnGround + SPAWN_AGL);
     this._graceUntil = performance.now() + 3000;
     this._recomputeOrientation();
@@ -281,7 +286,8 @@ export class Flight {
     this._updateCamera(0);
     // Second pass: now the camera sits at the real flight viewpoint (low, looking
     // ahead). Stream THOSE tiles in before we hand control over — no blank world.
-    await this._settleView(15000, onProgress, 0.68, 1);
+    await this._settleView(15000, onProgress, 0.68, .95);
+    await this._waitForAircraft(loadId, onProgress);
     onProgress(1, "Cleared for takeoff.");
     log(`spawn ${lat.toFixed(4)},${lng.toFixed(4)}`);
   }
@@ -327,6 +333,7 @@ export class Flight {
   async startReplay(path, onProgress = () => {}, vehicleId = "plane") {
     const C = window.Cesium;
     this._teardown();
+    const loadId = ++this._loadId;
     if (!path || path.length < 2) throw new Error("This flight has no recorded path.");
     this.setVehicle(VEHICLES.find(v => v.id === vehicleId) || VEHICLES.find(v => v.id === "plane"));
     const [lng0, lat0, alt0, hdg0] = path[0];
@@ -344,6 +351,7 @@ export class Flight {
     });
     await this._waitForTiles(25000, onProgress, 0.4, 0.68, "Loading flight…");
 
+    if (loadId !== this._loadId) throw new Error("Replay cancelled");
     this._addPlane();
     this._camHeading = this.heading;
     this.viewer.camera.frustum.fov = 60 * D2R;
@@ -354,6 +362,7 @@ export class Flight {
     this._installLoop();
     this._updateCamera(0);
     await this._settleView(15000, onProgress, 0.68, 1, "Loading the view ahead…");
+    await this._waitForAircraft(loadId, onProgress);
     this._replayReady = true;
     onProgress(1, "Playing.");
   }
@@ -412,6 +421,7 @@ export class Flight {
   }
 
   dispose() {
+    this._loadId++;
     this._teardown();
     if (this.viewer) this.viewer.useDefaultRenderLoop = false;
   }
@@ -543,6 +553,10 @@ export class Flight {
     // Bird flies the force-based model (glide + flap); everything else arcade.
     this.mode = this.vehicleType === "bird" ? "sim" : "arcade";
     log("vehicle → " + this.vehicleType);
+  }
+
+  toggleCamera() {
+    this.cameraView = this.cameraView === "chase" ? "profile" : "chase";
   }
 
   cycleFlaps() {
@@ -970,9 +984,10 @@ export class Flight {
 
     const enu = C.Transforms.eastNorthUpToFixedFrame(this.position, C.Ellipsoid.WGS84, new C.Matrix4());
     // Offset in ENU (east, north, up): behind the heading and above.
+    const cameraAngle = this._camHeading + (this.cameraView === "profile" ? .7 : 0);
     const offset = new C.Cartesian3(
-      -Math.sin(this._camHeading) * P.camBack,
-      -Math.cos(this._camHeading) * P.camBack,
+      -Math.sin(cameraAngle) * P.camBack,
+      -Math.cos(cameraAngle) * P.camBack,
       P.camUp
     );
     this.viewer.camera.lookAtTransform(enu, offset);
@@ -1069,8 +1084,23 @@ export class Flight {
     });
   }
 
+  _waitForAircraft(loadId, onProgress) {
+    const C = window.Cesium, started = performance.now();
+    const sphere = new C.BoundingSphere();
+    onProgress(.96, "Loading your aircraft…");
+    return new Promise((resolve, reject) => {
+      const poll = () => {
+        if (loadId !== this._loadId || !this.plane) return reject(new Error("Flight cancelled"));
+        if (this.viewer.dataSourceDisplay.getBoundingSphere(this.plane, false, sphere) === C.BoundingSphereState.DONE) return resolve();
+        if (performance.now() - started > 25000) return reject(new Error("Your aircraft could not load. Please retry."));
+        requestAnimationFrame(poll);
+      };
+      requestAnimationFrame(poll);
+    });
+  }
+
   _waitForTiles(timeoutMs, onProgress, p0 = 0.4, p1 = 0.7, label = "Spooling up the tiles…") {
-    const tileset = this.tileset;
+    const tileset = this.tileset, loadId = this._loadId;
     if (!tileset) return Promise.resolve();
     return new Promise((resolve) => {
       let done = false;
@@ -1086,6 +1116,7 @@ export class Flight {
       const started = performance.now();
       const poll = () => {
         if (done) return;
+        if (loadId !== this._loadId) return finish();
         const frac = Math.min(1, (performance.now() - started) / timeoutMs);
         onProgress(p0 + frac * (p1 - p0), label);
         if (tileset.tilesLoaded || performance.now() - started > timeoutMs) return finish();
@@ -1100,12 +1131,13 @@ export class Flight {
   // Requires several consecutive "loaded" frames so we don't exit on the
   // transient tilesLoaded=true that lingers right after the camera moves.
   _settleView(timeoutMs, onProgress, p0 = 0.7, p1 = 1, label = "Loading the view ahead…") {
-    const tileset = this.tileset;
+    const tileset = this.tileset, loadId = this._loadId;
     if (!tileset) return Promise.resolve();
     return new Promise((resolve) => {
       const started = performance.now();
       let stable = 0;
       const poll = () => {
+        if (loadId !== this._loadId) return resolve();
         const elapsed = performance.now() - started;
         onProgress(p0 + Math.min(1, elapsed / timeoutMs) * (p1 - p0), label);
         stable = tileset.tilesLoaded ? stable + 1 : 0;

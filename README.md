@@ -112,3 +112,17 @@ Skylark and Swift now use smooth shaded indexed geometry, finer wing profiles,
 framed glazing, angled struts, and detailed landing gear. Static geometry is
 batched by material, reducing model size and draw calls. The chase camera is
 closer for a clearer view of the aircraft.
+
+## Hangar / 03
+The home page now presents the aircraft first, with previews of the actual game
+models and an optional **View in 3D** inspection window. Choose a destination,
+then press **Take off**. Aircraft selection persists in this browser. **C** or the
+in-flight **View** button switches between chase and profile cameras.
+
+The 3D engine loads on demand, and takeoff waits for the selected model to be
+ready. Static resources revalidate after deployment. See `docs/UI-AUDIT.md` for
+the audit findings and validation scope.
+
+Run `python3 tests/hangar_smoke.py` for the end-to-end hangar checks.
+Regenerate the exact-model PNG previews with
+`python3 tools/render_aircraft_previews.py` (requires Playwright and Chromium).

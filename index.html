@@ -7,45 +7,36 @@
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/cesium@1.122/Build/Cesium/Widgets/widgets.css" />
   <script>window.CESIUM_BASE_URL = "https://unpkg.com/cesium@1.122/Build/Cesium/";</script>
-  <script src="https://unpkg.com/cesium@1.122/Build/Cesium/Cesium.js"></script>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="src/home.css?v=3" />
 </head>
 <body>
   <!-- ============ LANDING ============ -->
   <section id="screen-landing" class="screen active">
     <div class="landing-inner">
-      <header class="landing-header"><span class="brand-mark" aria-hidden="true">↗</span><span>OPEN SKIES</span><span class="header-note">A little freedom, at altitude.</span></header>
-      <div class="landing-hero"><p class="eyebrow">THE WORLD IS YOUR RUNWAY</p><h1 class="title">Find your next horizon.</h1><p class="subtitle">Choose your aircraft. Pick a place. Take to the sky.</p></div>
-      <div class="flight-planner">
-        <section class="destination-panel" aria-labelledby="destination-title">
-          <h2 id="destination-title" class="panel-title"><span>01</span> Choose your destination</h2>
-          <div class="world-picker" aria-label="Flight environment">
-            <button data-world="google" aria-pressed="true">Real world <small>Cities, coastlines & mountains</small></button>
-            <button data-world="sandbox" aria-pressed="false">Sandbox <small>A place to practice</small></button>
-          </div>
-          <div id="maps-panel">
-            <label class="field-label" for="place-input">Where would you like to fly?</label>
-            <div class="search-row"><input id="place-input" type="text" placeholder="Search a city or landmark" autocomplete="off" /><button id="btn-geo" class="ghost" title="Fly from my location">Near me ↗</button></div>
-            <h3 class="presets-heading">A few places to start</h3><div id="presets" class="presets"></div>
-          </div>
-          <div id="sandbox-panel" class="sandbox-panel" hidden>
-            <span class="eyebrow">ROOM TO FIND YOUR WINGS</span><h2>Meadow Airfield</h2><p>A countryside playground with an eight-gate course. Explore at your own pace.</p><button id="btn-sandbox" class="primary">Fly in Sandbox →</button><p class="sandbox-tip">Follow the gold gates. Hold Space to level your wings.</p>
-          </div>
-          <p id="landing-status" class="landing-status" role="status"></p>
-        </section>
-        <aside class="aircraft-panel" aria-labelledby="aircraft-title">
-          <h2 id="aircraft-title" class="panel-title"><span>02</span> Your aircraft</h2>
+      <header class="home-header"><a href="/" class="home-brand"><span aria-hidden="true">↗</span> OPEN SKIES</a><span class="home-tagline">Your own piece of sky.</span><button id="btn-help" class="text-button">How to fly ↗</button></header>
+      <main class="home-layout">
+        <section class="hangar-card" aria-label="Choose your aircraft">
+          <div class="hangar-caption"><span class="section-kicker">01 / YOUR AIRCRAFT</span><h1 id="plane-name">Skylark</h1><p id="plane-description">High-wing touring aircraft</p></div>
+          <span class="hangar-number" aria-hidden="true">01</span>
+          <div class="plane-stage"><img id="plane-preview" src="assets/skylark-preview.png?v=3" alt="Skylark aircraft rendered from the playable 3D model" fetchpriority="high" /></div>
+          <div class="hangar-bottom"><span id="plane-spec">10.8 m wingspan · single engine</span><button id="btn-inspect">View in 3D ⤢</button></div>
           <div id="vehicles" class="vehicle-row"></div>
+        </section>
+        <section class="route-panel" aria-labelledby="route-title">
+          <span class="section-kicker">02 / YOUR DESTINATION</span><h2 id="route-title">Where to?</h2><p class="route-intro">A new perspective is one flight away.</p>
+          <div class="world-picker" aria-label="Flight environment"><button data-world="google" aria-pressed="true">Real world</button><button data-world="sandbox" aria-pressed="false">Sandbox</button></div>
+          <div id="maps-panel"><label for="place-input" class="field-label">Search a city or landmark</label><div class="search-row"><input id="place-input" placeholder="Where do you want to go?" autocomplete="off" /><button id="btn-geo" title="Use my location" aria-label="Use my location">◎</button></div><div class="presets-header">Or choose a destination</div><div id="presets" class="presets"></div></div>
+          <div id="sandbox-panel" class="sandbox-panel" hidden><span class="sandbox-symbol" aria-hidden="true">↝</span><h3>Meadow Airfield</h3><p>Wide-open countryside. Eight golden gates. All the room you need to practice.</p><p class="sandbox-tip">No setup. Just take off.</p><button id="btn-sandbox" class="primary">Fly in Sandbox →</button></div>
+          <p id="landing-status" role="status" class="landing-status"></p>
+          <div id="launch-panel"><div class="launch-summary"><span id="selected-route">Manhattan</span><span id="selected-plane">Skylark</span></div><button id="btn-takeoff" class="primary">Take off →</button></div>
           <div id="quality" class="quality-row"></div>
-          <p class="setup-note">Ready at cruising altitude.<br>Just pick a destination to take off.</p>
-        </aside>
-      </div>
-      <div class="landing-footer">
-        <details class="help-panel"><summary>Flight controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>F</b> flaps · <b>V</b> arcade / sim · <b>Esc</b> finish</p></details>
-        <details class="help-panel"><summary>Longest flights</summary><div id="landing-board" class="board"></div></details>
-      </div>
+        </section>
+      </main>
+      <footer class="home-footer"><span>Free flight. No finish line.</span><details id="controls-help"><summary>Controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>C</b> camera · <b>F</b> flaps · <b>V</b> arcade / sim · <b>Esc</b> finish</p></details><details><summary>Flight leaderboard</summary><div id="landing-board" class="board"></div></details><span class="build-label">Hangar / 03</span></footer>
     </div>
   </section>
+  <dialog id="inspect-dialog" aria-labelledby="inspect-title"><div class="inspect-header"><h2 id="inspect-title">Aircraft inspection</h2><button id="inspect-close" aria-label="Close aircraft inspection">Close ✕</button></div><div id="inspect-stage"></div><p id="inspect-status" role="status">Loading your aircraft…</p><div class="inspect-controls"><button id="inspect-left" aria-label="Rotate aircraft left">↶ Rotate left</button><button id="inspect-right" aria-label="Rotate aircraft right">Rotate right ↷</button></div></dialog>
 
   <!-- ============ LOADING ============ -->
   <section id="screen-loading" class="screen">
@@ -87,6 +78,7 @@
       <div class="hud-buttons">
         <button id="btn-record" class="hud-btn" title="Record a 10s clip to share">🎬</button>
         <button id="btn-share" class="hud-btn" title="Share this view">📤</button>
+        <button id="btn-camera" class="hud-btn" title="Change camera view (C)">View</button>
         <button id="btn-tune" class="hud-btn" title="Flight tuner (g)">⚙</button>
         <button id="btn-mute" class="hud-btn" title="Mute / unmute">🔊</button>
         <button id="btn-dismount" class="hud-btn" title="Land (Esc)">Land</button>

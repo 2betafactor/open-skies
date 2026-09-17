@@ -152,12 +152,11 @@ def build(name, color, sport=False):
     a=Aircraft(name,color)
     # Fine longitudinal stations avoid the old faceted, cigar-shaped silhouette.
     a.hull('Fuselage',[(-4.25,.05,.035,.045),(-3.9,.03,.14,.16),(-3.35,0,.23,.24),(-2.6,0,.32,.33),(-1.7,0,.43,.44),(-.9,0,.53,.52),(0,0,.57,.56),(.75,0,.54,.53),(1.4,-.03,.45,.45),(2,-.04,.39,.4),(2.65,-.04,.33,.35),(2.95,-.04,.26,.29)],0,40)
-    a.hull('Cowling',[(1.8,-.04,.411,.415),(2.1,-.04,.39,.397),(2.6,-.04,.34,.358),(2.96,-.04,.267,.299)],0,32)
     # Glazing with a painted spine; high-wing trainer has separate window frames.
     a.hull('Cockpit',[(-1.3,.37,.03,.31),(-1.05,.42,.25,.42),(-.65,.44,.45,.46),(-.2,.44,.5,.46),(.35,.44,.47,.44),(.85,.4,.25,.37),(1.05,.35,.015,.28)],2,32)
     wing_height=-.28 if sport else .87
     span=9.4 if sport else 10.8
-    a.wing('Airfoil wings',span,.85,.25 if not sport else -.3,1.55,.95,wing_height,0)
+    a.wing('Airfoil wings',span,.85,.25 if not sport else -.3,1.55,.95,wing_height,1 if sport else 0)
     a.wing('Horizontal stabilizer',3.55,-2.95,-3.35,1.0,.62,.18,0)
     for side in [-1,1]:
         a.rod('Window frame',(-.35,.89,side*.3),(-.35,.38,side*.49),.026,0)

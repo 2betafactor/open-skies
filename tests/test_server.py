@@ -47,6 +47,12 @@ class ScoresTest(unittest.TestCase):
         self.assertEqual(flight['path'], path)
         self.assertNotIn('path', result['board'][0])
 
+    def test_static_assets_revalidate_after_deploy(self):
+        for path in ('/', '/src/main.js', '/src/home.css', '/assets/skylark.glb?v=3'):
+            with urllib.request.urlopen(self.url + path) as response:
+                self.assertEqual(response.headers.get('Cache-Control'), 'no-cache')
+                self.assertEqual(response.status, 200)
+
     def test_private_files_not_served(self):
         for path in ('/scores.json', '/.git/config', '/server.py', '/src/'):
             self.assertEqual(self.request(path)[0], 404)

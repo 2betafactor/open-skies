@@ -9,6 +9,7 @@ export class Controller {
   constructor(controls, opts = {}) {
     this.controls = controls;
     this.onDismount = opts.onDismount || (() => {});
+    this.onCamera = opts.onCamera || (() => {});
     this.onFlaps = opts.onFlaps || (() => {});
     this.onToggleMode = opts.onToggleMode || (() => {});
     this.keys = new Set();
@@ -42,6 +43,7 @@ export class Controller {
   _down(e) {
     if (e.target?.matches("input, textarea, select, [contenteditable=true]")) return;
     if (e.code === "Escape") return this.onDismount();
+    if (e.code === "KeyC" && !e.repeat) this.onCamera();
     if (e.code === "KeyF" && !e.repeat) this.onFlaps();
     if (e.code === "KeyV" && !e.repeat) this.onToggleMode();
     if (NAV_CODES.has(e.code)) e.preventDefault();

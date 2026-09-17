@@ -21,6 +21,7 @@ with sync_playwright() as p:
  assert page.locator('#presets .preset-card').count() == 8
  page.click('[data-world=sandbox]')
  result=page.evaluate('''async () => {
+  const {ensureEngine}=await import('/src/engine.js');await ensureEngine();
   const {Sandbox}=await import('/src/sandbox.js');
   const entities=new Cesium.EntityCollection();
   const s=new Sandbox({entities});

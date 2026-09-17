@@ -84,7 +84,8 @@ export function buildTuner(params) {
 
   const toggle = () => panel.classList.toggle("show");
   window.addEventListener("keydown", (e) => {
-    if (e.code === "KeyG" && !e.repeat) toggle();
+    if (e.target?.matches("input, textarea, select, [contenteditable=true]")) return;
+    if (e.code === "KeyG" && !e.repeat && document.getElementById("screen-ride").classList.contains("active")) toggle();
   });
 
   return {

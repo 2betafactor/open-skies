@@ -1156,3 +1156,16 @@ button:focus-visible { outline: 3px solid #e9c477; outline-offset: 4px; }
 
 .vehicle-row { justify-content:stretch; align-items:stretch; }
 .vehicle-btn { flex-direction:row; }
+
+/* Keep every flight action reachable on narrow screens, including resized desktops. */
+@media (max-width: 760px) {
+  #screen-ride .hud-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 8px; }
+  #screen-ride .hud-instrument { min-width: 0; }
+  #screen-ride .hud-instrument.center { margin: 0; }
+  #screen-ride .hud-value { font-size: 1.15rem; white-space: nowrap; }
+  #screen-ride .hud-compass { font-size: 1.4rem; }
+  #screen-ride .hud-label { font-size: .54rem; }
+  #screen-ride .hud-buttons { grid-column: 1 / -1; display: flex; gap: 5px; width: 100%; }
+  #screen-ride .hud-btn { flex: 1; min-width: 0; min-height: 40px; padding: 8px 4px; font-size: .72rem; }
+  body.replaying .replay-badge { top: calc(env(safe-area-inset-top, 0px) + 110px); font-size: .65rem; white-space: nowrap; }
+}

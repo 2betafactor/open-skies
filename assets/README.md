@@ -18,3 +18,8 @@ scale 1 and yaw 0 degrees. Both new aircraft retain the original flight physics.
 
 The refined models are approximately 76 KB each, about 32% smaller than their
 previous versions despite the additional surface detail.
+
+The `*-preview.png` files are transparent renders of the actual playable models,
+produced by `tools/render_aircraft_previews.py` through the same Cesium renderer.
+They are not concept images or substitute models. Version 3 removes an overlapping
+cowling surface and gives Swift red wings to distinguish it from Skylark.
