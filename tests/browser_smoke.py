@@ -15,6 +15,14 @@ with sync_playwright() as p:
  errors=[];google=[]
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.route('**/*google*',lambda r:(google.append(r.request.url),r.abort()))
+ # Request routing disables browser caching; retain the large engine across replay reload.
+ engine_cache={}
+ def engine_route(route):
+  if 'body' not in engine_cache:
+   response=route.fetch()
+   engine_cache['body']=response.body()
+  route.fulfill(status=200,content_type='application/javascript',body=engine_cache['body'])
+ page.route('**/Cesium.js',engine_route)
  page.goto(base,wait_until='networkidle')
  assert page.locator('[data-world=google]').get_attribute('aria-pressed') == 'true'
  assert page.locator('#place-input').is_visible()

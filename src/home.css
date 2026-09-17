@@ -69,3 +69,20 @@
 }
 #screen-landing .preset-card:hover { transform: none; box-shadow: none; background: #edf4f1; border-color: #91aaa8; }
 #screen-landing .quality-btn { box-shadow: none; }
+.flight-options { margin-top: 20px; padding-top: 16px; border-top: 1px solid #dde3df; font-size: .9rem; }
+.flight-options summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.flight-options label { display: block; margin-top: 12px; }
+.flight-options select { display: block; width: 100%; margin-top: 8px; padding: 11px; border: 1px solid #bdcbc7; border-radius: 8px; background: #fafbf8; color: #233940; font-size: 16px; }
+.conditions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#route-estimate, .option-note { color: #63777c; font-size: .8rem; line-height: 1.6; }
+#screen-landing .check-option { display: flex; align-items: center; gap: 9px; margin: 12px 0; font-size: .85rem; }
+.check-option input { width: 18px; height: 18px; accent-color: #c85d39; }
+#journal-dialog { width: min(780px,94vw); max-height: 90dvh; background: #f3f4f0; color: #233940; border: 1px solid #bdcbc7; border-radius: 18px; padding: 24px; }
+#journal-dialog::backdrop { background: #102329b8; }
+#journal-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+#journal-dialog h2 { font-size: 1.5rem; margin:0; }
+#journal-dialog button,#journal-dialog a { display:inline-block; padding:10px; margin:5px; border:1px solid #bdcbc7; border-radius:8px; background:white; color:#233940; font-size:.85rem; }
+#journal-summary { font-size:.85rem; line-height:1.6; }
+#journal-entries { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:15px; }
+.journal-card { min-width:0; padding:16px; background:white; border:1px solid #dde3df; border-radius:12px; }
+.journal-card h3 { margin:0; }.journal-card p { font-size:.8rem; line-height:1.6; }.journal-card img,.journal-card svg { width:100%; border-radius:8px; }.journal-card svg { background:#edf4f1; }

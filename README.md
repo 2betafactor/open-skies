@@ -2,7 +2,7 @@
 
 Fly a plane over **photorealistic 3D of the real world** — search any location (or
 pick a preset) and take off over Google's Photorealistic 3D Tiles, rendered with
-**CesiumJS**. Land to post your **distance flown** to a shared **leaderboard**, and
+**CesiumJS**. Finish a flight to post your **distance flown** to a shared **leaderboard**, and
 every flight is **recorded** so you can share a link that **replays** it.
 
 Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static files
@@ -18,7 +18,7 @@ Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static fi
 - **Flight recording + shareable replays** — `/?flight=<id>` replays a saved flight.
 
 ## Controls
-`W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Esc` / **Land** to finish.
+`W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Esc` / **Finish** to finish.
 
 ## Run locally
 Run `python3 server.py` and open http://localhost:8000. **Real world** is the
@@ -98,3 +98,27 @@ Older recordings with removed aircraft use the original airplane.
 The engine loads on demand, and flight waits for the airplane to finish loading.
 Static resources revalidate after deployment. Mobile flight actions remain visible.
 Run `python3 tests/navigation_smoke.py` for menu, launch, model and mobile checks.
+
+## Personal journeys
+- **Logbook & journal** stores up to 60 flights/photos on the current browser and
+  device. Records include duration, distance, a schematic track, discovered places,
+  favorites and a route to revisit. Entries can be deleted or exported as JSON;
+  photos can be downloaded. Storage failures are reported, not silently ignored.
+- **Plan & flight conditions** adds optional destination bearings and distance,
+  cruise-time estimates, a short local tour, daylight/sunrise/sunset, haze/rain,
+  gentle air motion and opt-in radio announcements. Weather is a visual preset,
+  not live conditions; photographed real-world shadows remain in the source imagery.
+- **Sandbox runway start** begins stationary at Meadow Airfield. Increase throttle
+  with Shift or the touch lever; hold W/up at 105 km/h to rotate. Land aligned with
+  the strip, below 173 km/h, under 4 m/s descent, with wings close to level. Reduce
+  throttle to brake; Finish saves the flight. Unsafe contacts and runway excursions
+  respawn airborne. Uncheck runway start for the previous airborne practice mode.
+  Real-world flights retain their airborne starts; city scenery is not a runway.
+- **Return** guides you back to the departure point. **H / Hide HUD** removes
+  secondary instruments while retaining warnings, guidance, touch controls and
+  map credits. **P / Save photo** adds a picture to your travel journal.
+- Flight audio adds engine pitch and volume tied to throttle, wind and runway
+  rumble. Radio uses the browser's speech voice and is off by default.
+
+Run `python3 tests/journey_smoke.py` for route calculations, browser persistence,
+runway state transitions, weather rendering, minimal view and photo/logbook flows.

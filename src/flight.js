@@ -1,5 +1,5 @@
-import { VEHICLES } from "./vehicles.js?v=single4";
-import { Sandbox } from "./sandbox.js?v=single4";
+import { VEHICLES } from "./vehicles.js?v=journey5";
+import { Sandbox } from "./sandbox.js?v=journey5";
 // flight.js — arcade flight engine over Google Photorealistic 3D Tiles (Cesium).
 // Implements the "feel guide" reference model: rotational inertia, energy
 // exchange, velocity-lag, input shaping, spring auto-level, fixed 120 Hz step.
@@ -85,6 +85,7 @@ export class Flight {
 
     this.position = null;
     this.orientation = null;
+    this.phase = "airborne";
     this.heading = 0;
     this.pitch = 0;
     this.roll = 0;
@@ -229,6 +230,7 @@ export class Flight {
     const sLng = lng;
     this._targetLL = null;
     this.spawnLL = { lat: sLat, lng: sLng };
+    this.phase = "airborne";
     this.heading = 0;
     this.pitch = 0;
     this.roll = 0;
@@ -278,6 +280,13 @@ export class Flight {
     log(`ground ${Math.round(this.spawnGround)}m → spawn ${Math.round(this.spawnGround + SPAWN_AGL)}m`);
 
     this.sandbox?.reset();
+    if (this.world === "sandbox" && opts.runway) {
+      this.phase = "parked";
+      this._setPositionLL(-.0054, 0, 7);
+      this.throttle = 0; this.speed = 0;
+      this.velocity = new C.Cartesian3();
+      this._recomputeOrientation();
+    }
     this._addPlane();
 
     this._camHeading = this.heading;
@@ -497,6 +506,14 @@ export class Flight {
     ctx.fillText(readout, w - pad, h - pad);
     ctx.textAlign = "left";
 
+    // Include source credits in exported images, outside the game readout.
+    const credits = [...document.querySelectorAll(".cesium-credit-textContainer")].map(el => el.textContent.trim()).filter(Boolean).join(" · ");
+    const attribution = (this.world === "google" ? "Google Maps · " : "") + credits;
+    if (attribution) {
+      ctx.font = `${Math.max(12, Math.round(w * .012))}px system-ui`;
+      ctx.fillStyle = "rgba(0,0,0,.7)";ctx.fillRect(0,0,w,30);
+      ctx.fillStyle = "white";ctx.fillText(attribution,10,20,w-20);
+    }
     return await new Promise((res) => c.toBlob(res, "image/png", 0.95));
   }
 
@@ -729,6 +746,12 @@ export class Flight {
     if (!Number.isFinite(this.throttle)) this.throttle = 0.5;
     if (!Number.isFinite(this.speed)) this.speed = this.P.cruiseKmh / 3.6;
 
+    if (["parked", "rolling", "landed"].includes(this.phase)) { this._stepRunway(h); return; }
+    if (this.airMotion) {
+      const strength = this.weather === "rain" ? .055 : .025;
+      this._rollVel += Math.sin((this._elapsed || 0) * 1.7) * strength * h;
+      this._pitchVel += Math.sin((this._elapsed || 0) * 1.1 + 1) * strength * .5 * h;
+    }
     if (this.vehicleType === "balloon") this._stepBalloon(h);
     else if (this.mode === "sim") this._stepSim(h);
     else this._stepArcade(h);
@@ -892,6 +915,63 @@ export class Flight {
   }
 
   // Shared altitude sampling + floor/ceiling assist. Returns true if it crashed.
+  _overRunway() {
+    const C = window.Cesium, c = C.Cartographic.fromCartesian(this.position);
+    return Math.abs(c.longitude / D2R * 111320) < 27 && Math.abs(c.latitude / D2R * 111320) < 735;
+  }
+
+  _stepRunway(h) {
+    const C = window.Cesium, c = this.controls;
+    this.throttle = clamp(this.throttle + c.throttle * .5 * h, 0, 1);
+    this.speed = Math.max(0, this.speed + (this.throttle * 5 - .4 - (1 - this.throttle) * 2.5) * h);
+    if (this.phase === "parked" && this.speed > .2) this.phase = "rolling";
+    this.heading = wrap2pi(this.heading + (c.rudder + c.roll * .4) * .22 * h * Math.min(1, this.speed / 8));
+    const basis = this._basisFor(this.heading, 0, 0);
+    addScaled(this.position, basis.F, this.speed * h);
+    const ll = C.Cartographic.fromCartesian(this.position);
+    this._setPositionLL(ll.latitude / D2R, ll.longitude / D2R, 7);
+    this.agl = 7; this.pitch = 0; this.roll = 0; this._vspeed = 0;
+    this.warning = this.speed * 3.6 >= 105 ? "ROTATE · PITCH UP" : "";
+    if (this.speed * 3.6 >= 105 && c.pitch > .15) {
+      this.phase = "airborne"; this.pitch = .10;
+      this._setPositionLL(ll.latitude / D2R, ll.longitude / D2R, 8);
+      this.velocity = scale(this._basisFor(this.heading, this.pitch, 0).F, this.speed);
+      this._velDir = null; this._graceUntil = performance.now() + 5000;
+    } else if (!this._overRunway()) this._crash();
+  }
+
+  setAtmosphere(time = "day", weather = "clear") {
+    if (!this.viewer) return;
+    const C = window.Cesium, scene = this.viewer.scene;
+    this.weather = weather;
+    const colors = { day: "#fff5df", sunrise: "#ffc298", sunset: "#ffab83" };
+    scene.light.color = C.Color.fromCssColorString(colors[time] || colors.day);
+    scene.light.intensity = time === "day" ? 2.4 : 1.4;
+    scene.light.direction = C.Cartesian3.normalize(new C.Cartesian3(time === "sunrise" ? -.6 : .5, -.32, time === "day" ? -.8 : -.18), new C.Cartesian3());
+    scene.skyAtmosphere.hueShift = time === "day" ? 0 : -.08;
+    scene.skyAtmosphere.brightnessShift = time === "day" ? 0 : -.15;
+    scene.fog.density = weather === "clear" ? .0001 : weather === "haze" ? .0015 : .001;
+    if (!this._weatherStage || this._weatherStage.isDestroyed()) {
+      this._weatherStage = scene.postProcessStages.add(new C.PostProcessStage({
+        fragmentShader: `uniform sampler2D colorTexture;
+          uniform float haze; uniform float rain;
+          in vec2 v_textureCoordinates;
+          void main() {
+            vec2 uv = v_textureCoordinates;
+            vec3 col = texture(colorTexture, uv).rgb;
+            col = mix(col, vec3(.66,.72,.77), haze * (.2 + .5 * uv.y));
+            float t = czm_frameNumber / 60.0;
+            vec2 p = vec2(uv.x * 160.0 + uv.y * 24.0, uv.y * 32.0 + t * 18.0);
+            float drop = step(.96, fract(p.x)) * step(.65, fract(p.y + floor(p.x) * .37));
+            col += vec3(drop * rain * .12);
+            out_FragColor = vec4(col, 1.0);
+          }`,
+        uniforms: { haze: () => this.weather === "clear" ? 0 : .42, rain: () => this.weather === "rain" ? 1 : 0 }
+      }));
+    }
+    this._weatherStage.enabled = weather !== "clear";
+  }
+
   _altitude(h) {
     const C = window.Cesium;
     this.alt = C.Cartographic.fromCartesian(this.position).height;
@@ -901,6 +981,22 @@ export class Flight {
       this._sampleGround();
     }
     this.agl = this._groundValid ? this._aglFilt : 9999;
+    if (this.world === "sandbox" && this._overRunway()) {
+      // Ground contact is accepted only for a stable, slow approach along the strip.
+      if (this.alt <= 7.2) {
+        const aligned = Math.abs(Math.sin(this.heading)) < .25;
+        if (aligned && Math.abs(this.roll) < .18 && this.speed < 48 && this._vspeed > -4 && Math.abs(this.pitch) < .22) {
+          const ll = C.Cartographic.fromCartesian(this.position);
+          this._setPositionLL(ll.latitude / D2R, ll.longitude / D2R, 7);
+          this.phase = "landed"; this.pitch = 0; this.roll = 0; this._pitchVel = 0; this._rollVel = 0;
+          this.warning = "TOUCHDOWN · THROTTLE DOWN TO BRAKE";
+          return true;
+        }
+        this._crash(); return true;
+      }
+      this.warning = this.alt < 50 ? "RUNWAY APPROACH · SLOW, WINGS LEVEL" : "";
+      return false;
+    }
     if (this.world === "sandbox" && this.alt < FLOOR_CRASH) { this._crash(); return true; }
 
     const now = performance.now();
@@ -988,7 +1084,7 @@ export class Flight {
     const offset = new C.Cartesian3(
       -Math.sin(cameraAngle) * P.camBack,
       -Math.cos(cameraAngle) * P.camBack,
-      P.camUp
+      P.camUp + (this.airMotion && this.phase === "airborne" ? Math.sin((this._elapsed || 0) * .8) * .12 : 0)
     );
     this.viewer.camera.lookAtTransform(enu, offset);
 
@@ -1032,6 +1128,7 @@ export class Flight {
   }
 
   _crash() {
+    this.phase = "airborne";
     this.crashes++;
     log("crash → respawn");
     flash();

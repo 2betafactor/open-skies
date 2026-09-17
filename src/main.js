@@ -1,13 +1,14 @@
-import { ensureEngine } from "./engine.js?v=single4";
-import { VEHICLES } from "./vehicles.js?v=single4";
+import { Journey } from "./journey.js?v=journey5";
+import { ensureEngine } from "./engine.js?v=journey5";
+import { VEHICLES } from "./vehicles.js?v=journey5";
 // main.js — app state machine (landing → loading → flying), Google Maps loader
 // (Places), Cesium flight scene, presets.
 
-import { Flight, DEFAULT_PARAMS } from "./flight.js?v=single4";
-import { Controller } from "./controller.js?v=single4";
-import { EngineAudio } from "./audio.js?v=single4";
-import { HUD } from "./hud.js?v=single4";
-import { buildTuner } from "./tuner.js?v=single4";
+import { Flight, DEFAULT_PARAMS } from "./flight.js?v=journey5";
+import { Controller } from "./controller.js?v=journey5";
+import { EngineAudio } from "./audio.js?v=journey5";
+import { HUD } from "./hud.js?v=journey5";
+import { buildTuner } from "./tuner.js?v=journey5";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -43,6 +44,7 @@ const PRESETS = [
   { emoji: "🏝️", name: "Key West", desc: "Island & turquoise sea", lat: 24.5551, lng: -81.78 },
 ];
 
+let journey;
 const app = {
   audio: new EngineAudio(),
   hud: null,
@@ -86,6 +88,7 @@ async function selectWorld(world) {
   document.getElementById("maps-panel").hidden = world !== "google";
   document.getElementById("launch-panel").hidden = world !== "google";
   setLandingStatus("");
+  journey?.plan();
   if (world === "google") {
     try { await loadMaps(); } catch (e) { if (app.world === "google") setLandingStatus(e.message, true); }
   }
@@ -124,6 +127,12 @@ function initApp() {
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
   app.flight = new Flight("cesiumContainer");
+  journey = new Journey(app, PRESETS, toast, entry => {
+    selectWorld(entry.world === "sandbox" ? "sandbox" : "google");
+    if(entry.start) selectDestination(entry.start);
+    document.getElementById("route-end").value = ["Local tour", "Northern fields"].includes(entry.target?.name) ? "local" : entry.target?.name || "";
+    journey.plan();
+  });
   app.flight.onError = (e) => {
     const msg = (e && (e.message || e.toString())) || "unknown";
     showError("The scenery could not be rendered. Try Performance graphics and reload.");
@@ -506,6 +515,7 @@ async function takeOff(lat, lng, label, opts = {}) {
 
     app.flight.setQuality(app.quality);
     app.flight.setVehicle(app.vehicle);
+    opts = { ...opts, runway: app.world === "sandbox" && document.getElementById("runway-start").checked };
     await app.flight.spawn(lat, lng, (frac, lbl) => {
       if (!app.cancelled) setLoading(frac, lbl);
     }, opts);
@@ -528,6 +538,7 @@ async function takeOff(lat, lng, label, opts = {}) {
 }
 
 function beginFlight() {
+  journey.begin();
   Object.assign(app.flight.controls, { pitch: 0, roll: 0, rudder: 0, throttle: 0, level: false });
   app.audio.start();
   app.hud.setMuted(app.audio.muted);
@@ -541,6 +552,7 @@ function beginFlight() {
   let lastCrashes = app.flight.crashes || 0;
   app.flight.onState = (s) => {
     app.hud.update(s);
+    journey.update(s);
     document.getElementById("course-status").textContent = app.vehicle.name + " · " + (app.world === "sandbox" ? app.flight.sandbox.status(app.flight.position) : "Free flight");
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
@@ -586,6 +598,7 @@ document.addEventListener("visibilitychange", () => {
 function dismount() {
   const wasFlying = app.flying;
   const flight = app.flight ? app.flight.getFlight() : null;
+  if (wasFlying) journey.finish(flight);
   app.flying = false;
   releaseWakeLock();
   speedFx.setSpeedFrac(0); // fade out the streaks
@@ -784,7 +797,9 @@ async function watchFlight(id) {
   app.loading = true;
   app.cancelled = false;
   app.flying = false;
-  document.body.classList.add("replaying"); // hides controls, shows REPLAY + Fly now
+  document.body.classList.add("replaying");
+  document.querySelector(".journey-actions").hidden = true;
+  document.getElementById("journey-nav").hidden = true; // hides controls, shows REPLAY + Fly now
   showScreen("ride");
   if (app.flight.viewer) app.flight.viewer.resize();
   showLoading(true, "Loading flight…");
@@ -904,6 +919,7 @@ initApp();
 
 function selectDestination(destination) {
   app.destination = destination;
+  journey?.plan();
   document.getElementById("place-input").value = "";
   document.getElementById("btn-takeoff").disabled = false;
   document.getElementById("selected-route").textContent = destination.name;

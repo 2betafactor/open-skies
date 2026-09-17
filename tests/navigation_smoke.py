@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory() as data:
   print('Home works without the 3D engine; single aircraft and explicit destination selection passed.',flush=True)
   page.unroute('**/Cesium.js')
   page.set_viewport_size({'width':1000,'height':760})
-  awaitable='''async () => {const {Flight}=await import('/src/flight.js?v=single4');const start=Flight.prototype.start;Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}'''
+  awaitable='''async () => {const {Flight}=await import('/src/flight.js?v=journey5');const start=Flight.prototype.start;Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}'''
   page.evaluate(awaitable)
   page.click('[data-world=sandbox]');page.click('#btn-sandbox')
   page.wait_for_function('window.testFlight?._running',timeout=60000)

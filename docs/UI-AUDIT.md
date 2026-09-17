@@ -13,3 +13,17 @@
 Validation: API regression suite and browser navigation / Sandbox smoke checks.
 Browser checks block the external map provider; production scenery and API permissions
 are outside their scope. Scores remain client reported and recordings cap at 800 points.
+
+## Personal journey update
+- Keeps the original airplane and external cameras; adds no cockpit or vehicle picker.
+- Flight options are collapsed by default, preserving the simple destination-first menu.
+- Adds device-local logbook/photos, route guidance and return-to-departure, destination
+  discovery notes, minimal HUD, synthesized engine/ground audio and opt-in speech.
+- Adds optional Sandbox runway starts and stable touchdown/braking. Real-world
+  takeoff stays airborne because arbitrary searched locations are not safe runways.
+- Adds visual time/weather presets and optional gentle motion. Clear daylight is
+  the default; motion can be disabled; radio starts off. No live-weather claims.
+- Storage writes report failures; entries can be deleted, favorited, downloaded or
+  exported. The journal retains at most 60 entries and is specific to this browser.
+- Minimal HUD retains warnings, route guidance, touch inputs, credits and Show HUD.
+- Photos preserve visible source attribution in exported images.

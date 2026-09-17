@@ -1,5 +1,5 @@
-// audio.js — calm ambient BACKGROUND MUSIC (evolving chord pads through reverb),
-// with a faint wind bed that rises with speed. No engine noise. Web Audio only;
+// audio.js — ambient music, throttle-responsive engine, wind and runway rumble.
+// Synthesized locally with Web Audio;
 // must be started from a user gesture (Take Off). Interface kept the same so the
 // rest of the app doesn't change: start / setThrottle / setSpeed / toggleMute.
 
@@ -107,6 +107,13 @@ export class EngineAudio {
     noise.connect(wbp).connect(this.windGain).connect(this.master);
     noise.start();
 
+    this.engine = ctx.createOscillator(); this.engine.type = "sawtooth";
+    const engineFilter = ctx.createBiquadFilter(); engineFilter.type = "lowpass"; engineFilter.frequency.value = 240;
+    this.engineGain = ctx.createGain(); this.engineGain.gain.value = .025;
+    this.engine.frequency.value = 45; this.engine.connect(engineFilter).connect(this.engineGain).connect(this.master); this.engine.start();
+    this.groundGain = ctx.createGain(); this.groundGain.gain.value = 0;
+    const groundFilter = ctx.createBiquadFilter(); groundFilter.type = "lowpass"; groundFilter.frequency.value = 160;
+    noise.connect(groundFilter).connect(this.groundGain).connect(this.master);
     this._started = true;
     this._idx = 0;
     this._setChord(0);
@@ -124,8 +131,18 @@ export class EngineAudio {
     this.bass.frequency.setTargetAtTime(BASS[i % BASS.length], now, 1.6);
   }
 
-  // Music is independent of throttle — no-op (kept for interface compatibility).
-  setThrottle() {}
+  setThrottle(value) {
+    if (!this._started) return;
+    this.engine.frequency.setTargetAtTime(40 + value * 100, this.ctx.currentTime, .5);
+    this.engineGain.gain.setTargetAtTime(.018 + value * .06, this.ctx.currentTime, .5);
+  }
+  setGround(on, speed) {
+    if(this._started)this.groundGain.gain.setTargetAtTime(on ? Math.min(.14, speed / 900) : 0, this.ctx.currentTime, .2);
+  }
+  say(text) {
+    if(this.muted || !window.speechSynthesis)return;
+    speechSynthesis.cancel();const line=new SpeechSynthesisUtterance(text);line.rate=.9;line.volume=.45;speechSynthesis.speak(line);
+  }
 
   // Speed gently brightens the music and lifts the wind.
   setSpeed(frac) {
@@ -136,6 +153,7 @@ export class EngineAudio {
 
   toggleMute() {
     this.muted = !this.muted;
+    if(this.muted)window.speechSynthesis?.cancel();
     if (this._started) {
       this.master.gain.setTargetAtTime(this.muted ? 0 : 0.55, this.ctx.currentTime, 0.08);
     }
@@ -148,6 +166,7 @@ export class EngineAudio {
 
   suspend() {
     this._shouldPlay = false;
+    window.speechSynthesis?.cancel();
     if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
   }
 }

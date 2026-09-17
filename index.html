@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/cesium@1.122/Build/Cesium/Widgets/widgets.css" />
   <script>window.CESIUM_BASE_URL = "https://unpkg.com/cesium@1.122/Build/Cesium/";</script>
-  <link rel="stylesheet" href="style.css?v=single4" />
-  <link rel="stylesheet" href="src/home.css?v=4" />
+  <link rel="stylesheet" href="style.css?v=journey5" />
+  <link rel="stylesheet" href="src/home.css?v=5" />
 </head>
 <body>
   <!-- ============ LANDING ============ -->
@@ -20,16 +20,24 @@
           <span class="section-kicker">FREE FLIGHT</span><h1 id="route-title">Where will you fly?</h1><p class="route-intro">Choose a destination. Take to the skies.</p>
           <div class="world-picker" aria-label="Flight environment"><button data-world="google" aria-pressed="true">Real world</button><button data-world="sandbox" aria-pressed="false">Sandbox</button></div>
           <div id="maps-panel"><label for="place-input" class="field-label">Search a city or landmark</label><div class="search-row"><input id="place-input" placeholder="Where do you want to go?" autocomplete="off" /><button id="btn-geo" title="Use my location" aria-label="Use my location">◎</button></div><div class="presets-header">Or choose a destination</div><div id="presets" class="presets"></div></div>
-          <div id="sandbox-panel" class="sandbox-panel" hidden><span class="sandbox-symbol" aria-hidden="true">↝</span><h3>Meadow Airfield</h3><p>Wide-open countryside. Eight golden gates. All the room you need to practice.</p><p class="sandbox-tip">No setup. Just take off.</p><button id="btn-sandbox" class="primary">Fly in Sandbox →</button></div>
+          <div id="sandbox-panel" class="sandbox-panel" hidden><span class="sandbox-symbol" aria-hidden="true">↝</span><h3>Meadow Airfield</h3><p>Wide-open countryside. Eight golden gates. All the room you need to practice.</p><p class="sandbox-tip">No setup. Just take off.</p><label class="check-option"><input id="runway-start" type="checkbox" checked> Start on the runway</label><p class="option-note">Throttle up, then pitch up at 105 km/h (W / ↑ or push STEER up). Return slowly with wings level; reduce throttle after touchdown to brake.</p><button id="btn-sandbox" class="primary">Fly in Sandbox →</button></div>
           <p id="landing-status" role="status" class="landing-status"></p>
           <div id="launch-panel"><div class="launch-summary"><span id="selected-route">Manhattan</span><span>Ready for takeoff</span></div><button id="btn-takeoff" class="primary">Take off →</button></div>
-          <div id="quality" class="quality-row"></div>
+          <details class="flight-options"><summary>Plan & flight conditions</summary>
+            <label for="route-end">Destination guidance</label><select id="route-end"><option value="">Free exploration</option></select><p id="route-estimate"></p>
+            <div class="conditions-grid"><label>Time of day<select id="time-of-day"><option value="day">Daylight</option><option value="sunrise">Sunrise</option><option value="sunset">Sunset</option></select></label><label>Weather<select id="weather"><option value="clear">Clear</option><option value="haze">Haze</option><option value="rain">Light rain</option></select></label></div>
+            <p class="option-note">Atmospheric effects, not live weather. Real-world imagery keeps its photographed lighting.</p>
+            <label class="check-option"><input id="air-motion" type="checkbox" checked> Gentle air motion</label>
+            <label class="check-option"><input id="discoveries" type="checkbox" checked> Discovery notes</label>
+            <label class="check-option"><input id="radio" type="checkbox"> Optional radio announcements</label>
+          </details><div id="quality" class="quality-row"></div>
         </section>
       </main>
-      <footer class="home-footer"><span>Free flight. No finish line.</span><details id="controls-help"><summary>Controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>C</b> camera · <b>F</b> flaps · <b>V</b> arcade / sim · <b>Esc</b> finish</p></details><details><summary>Flight leaderboard</summary><div id="landing-board" class="board"></div></details></footer>
+      <footer class="home-footer"><span>Free flight. No finish line.</span><button id="btn-journal" class="text-button">Logbook & journal</button><details id="controls-help"><summary>Controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>H</b> hide HUD · <b>P</b> save photo<br><b>C</b> camera · <b>F</b> flaps · <b>V</b> arcade / sim · <b>Esc</b> finish</p></details><details><summary>Flight leaderboard</summary><div id="landing-board" class="board"></div></details></footer>
     </div>
   </section>
 
+  <dialog id="journal-dialog" aria-labelledby="journal-title"><header><h2 id="journal-title">Your journeys</h2><button id="journal-close">Close ✕</button></header><p id="journal-summary"></p><div id="journal-entries"></div></dialog>
   <!-- ============ LOADING ============ -->
   <section id="screen-loading" class="screen">
     <div class="loading-inner">
@@ -73,10 +81,12 @@
         <button id="btn-camera" class="hud-btn" title="Change camera view (C)">View</button>
         <button id="btn-tune" class="hud-btn" title="Flight tuner (g)">⚙</button>
         <button id="btn-mute" class="hud-btn" title="Mute / unmute">🔊</button>
-        <button id="btn-dismount" class="hud-btn" title="Land (Esc)">Land</button>
+        <button id="btn-dismount" class="hud-btn" title="Finish flight (Esc)">Finish</button>
       </div>
     </div>
 
+    <div class="journey-actions"><button id="btn-return" title="Guide me back to departure">Return</button><button id="btn-photo" title="Save photo to journal (P)">Save photo</button><button id="btn-minimal" aria-pressed="false" title="Toggle minimal HUD (H)">Hide HUD</button></div>
+    <div id="journey-nav" hidden role="status"></div><div id="discovery-note" role="status"></div>
     <div id="course-status" class="course-status" role="status"></div>
     <div id="hud-warning" class="hud-warning"></div>
     <div id="hud-crashes" class="hud-crashes"></div>
@@ -135,6 +145,6 @@
   <div id="error-banner" class="error-banner"></div>
 
   <script src="config.js"></script>
-  <script type="module" src="src/main.js?v=single4"></script>
+  <script type="module" src="src/main.js?v=journey5"></script>
 </body>
 </html>
