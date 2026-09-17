@@ -13,8 +13,3 @@ service, downloaded model, or additional runtime library is needed.
 Rebuild the new assets with `python3 tools/build_aircraft.py`.
 Coordinates: +X forward, +Y up, +Z right; units are metres. Cesium mounting uses
 scale 1 and yaw 0 degrees. Both new aircraft retain the original flight physics.
-
-`street-gt.glb` is the original orange GT coupe for Street Run: sculpted body,
-glass canopy, mirrors, wheels, spoiler, and front/rear lights. Rebuild it with
-`python3 tools/build_car.py`. It uses the same metre-based coordinate convention
-as the aircraft and contains no external textures.

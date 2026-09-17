@@ -1108,10 +1108,3 @@ button:focus-visible { outline: 3px solid #e9c477; outline-offset: 4px; }
 
 .world-picker button[data-world="google"] { flex: 2; }
 .world-picker button[data-world="sandbox"] { font-size: .9rem; }
-
-.game-picker { display: flex; gap: 12px; margin: 22px 0; }
-.game-picker a { flex: 1; text-decoration: none; color: var(--text); border: 1px solid #5a7561; border-radius: 12px; background: #1c2b24; padding: 16px; font-size: 1.15rem; font-weight: 700; }
-.game-picker a[aria-current] { border-color: var(--accent); }
-.game-picker small { display: block; color: var(--muted); font-size: .75rem; font-weight: 400; margin-top: 5px; }
-.game-picker a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.game-picker a:hover { background: #304637; }

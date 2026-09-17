@@ -82,7 +82,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json([{k: v for k, v in e.items() if k != "path"} for e in top])
         # Serve only public game assets, never source data or repository files.
         path = urlsplit(self.path).path
-        if path not in ("/", "/index.html", "/style.css", "/drive.html", "/drive.css", "/favicon.ico") and not path.startswith(("/src/", "/assets/")):
+        if path not in ("/", "/index.html", "/style.css", "/favicon.ico") and not path.startswith(("/src/", "/assets/")):
             return self._json({"error": "not found"}, 404)
         if ".." in path or "%" in path or path.endswith("/") and path != "/":
             return self._json({"error": "not found"}, 404)
