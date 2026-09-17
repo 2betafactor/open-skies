@@ -1,13 +1,13 @@
-import { ensureEngine } from "./engine.js?v=hangar3";
-import { VEHICLES } from "./vehicles.js?v=hangar3";
+import { ensureEngine } from "./engine.js?v=single4";
+import { VEHICLES } from "./vehicles.js?v=single4";
 // main.js — app state machine (landing → loading → flying), Google Maps loader
 // (Places), Cesium flight scene, presets.
 
-import { Flight, DEFAULT_PARAMS } from "./flight.js?v=hangar3";
-import { Controller } from "./controller.js?v=hangar3";
-import { EngineAudio } from "./audio.js?v=hangar3";
-import { HUD } from "./hud.js?v=hangar3";
-import { buildTuner } from "./tuner.js?v=hangar3";
+import { Flight, DEFAULT_PARAMS } from "./flight.js?v=single4";
+import { Controller } from "./controller.js?v=single4";
+import { EngineAudio } from "./audio.js?v=single4";
+import { HUD } from "./hud.js?v=single4";
+import { buildTuner } from "./tuner.js?v=single4";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -97,13 +97,6 @@ function initApp() {
   app.world = "google";
   document.querySelectorAll("[data-world]").forEach(b => b.addEventListener("click", () => selectWorld(b.dataset.world)));
   document.getElementById("btn-sandbox").addEventListener("click", () => takeOff(0, 0, "Meadow Airfield"));
-  try {
-    const saved = localStorage.getItem("open-skies.aircraft");
-    app.vehicle = VEHICLES.find(v => v.id === saved) || VEHICLES[0];
-  } catch {}
-  renderVehicles();
-  updateAircraftPreview();
-  setupInspection();
   document.getElementById("place-input").addEventListener("input", e => {
     const pending = !!e.target.value.trim();
     document.getElementById("btn-takeoff").disabled = pending;
@@ -167,30 +160,6 @@ function initApp() {
 }
 
 // ================= Landing =================
-function renderVehicles() {
-  const wrap = document.getElementById("vehicles");
-  wrap.innerHTML = "";
-  if (VEHICLES.length <= 1) {
-    wrap.style.display = "none"; // only one vehicle → no picker needed
-    return;
-  }
-  for (const v of VEHICLES) {
-    const btn = document.createElement("button");
-    btn.setAttribute("aria-pressed", String(v.id === app.vehicle.id));
-    btn.className = "vehicle-btn" + (v.id === app.vehicle.id ? " active" : "");
-    btn.innerHTML = `<img src="assets/${v.id}-preview.png?v=3" alt="" /><span class="v-name">${v.name}</span><span class="v-description">${v.id === "plane" ? "Original" : v.id === "skylark" ? "Touring" : "Sport"}</span>`;
-    btn.addEventListener("click", () => {
-      app.vehicle = v;
-      try { localStorage.setItem("open-skies.aircraft", v.id); } catch {}
-      updateAircraftPreview();
-      for (const b of wrap.children) { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); }
-      btn.setAttribute("aria-pressed", "true");
-      btn.classList.add("active");
-    });
-    wrap.appendChild(btn);
-  }
-}
-
 function renderQuality() {
   const wrap = document.getElementById("quality");
   if (!wrap) return;
@@ -943,42 +912,6 @@ function selectDestination(destination) {
   }
   setLandingStatus("");
 }
-function updateAircraftPreview() {
-  const v = app.vehicle;
-  document.getElementById("plane-name").textContent = v.name;
-  document.getElementById("plane-description").textContent = v.description;
-  document.getElementById("plane-spec").textContent = v.spec;
-  const img = document.getElementById("plane-preview");
-  img.src = `assets/${v.id}-preview.png?v=3`;
-  img.alt = `${v.name} aircraft rendered from the playable 3D model`;
-  document.getElementById("selected-plane").textContent = v.name;
-}
-function setupInspection() {
-  const dialog = document.getElementById("inspect-dialog");
-  let hangar = null, generation = 0;
-  document.getElementById("btn-inspect").addEventListener("click", async () => {
-    const current = ++generation;
-    dialog.showModal();
-    document.getElementById("inspect-title").textContent = app.vehicle.name;
-    document.getElementById("inspect-status").textContent = "Loading your aircraft…";
-    try {
-      await ensureEngine();
-      if (current !== generation || !dialog.open) return;
-      const { Hangar } = await import("./hangar.js?v=hangar3");
-      if (current !== generation || !dialog.open) return;
-      hangar = new Hangar("inspect-stage");
-      await hangar.show(app.vehicle);
-      if (current === generation && dialog.open) document.getElementById("inspect-status").textContent = "This is the aircraft you’ll fly. Rotate to explore.";
-    } catch (error) {
-      if (current === generation && dialog.open) document.getElementById("inspect-status").textContent = "The 3D preview could not load. Close this window and try again.";
-    }
-  });
-  document.getElementById("inspect-left").addEventListener("click", () => hangar?.orbit(-.4));
-  document.getElementById("inspect-right").addEventListener("click", () => hangar?.orbit(.4));
-  document.getElementById("inspect-close").addEventListener("click", () => dialog.close());
-  dialog.addEventListener("close", () => { generation++; hangar?.destroy(); hangar = null; });
-}
-
 function changeCamera() {
   app.flight.toggleCamera();
   document.getElementById("btn-camera").textContent = app.flight.cameraView === "profile" ? "Profile" : "Chase";

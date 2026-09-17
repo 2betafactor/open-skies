@@ -1,4 +1,4 @@
-// Menus and aircraft images remain usable even if the 3D CDN is unavailable.
+// Menus remain usable even if the 3D CDN is unavailable.
 let pending;
 export function ensureEngine() {
   if(window.Cesium)return Promise.resolve(window.Cesium);

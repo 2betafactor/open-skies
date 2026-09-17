@@ -88,41 +88,13 @@ for Google-blocked Sandbox course, replay, mobile, and mode-switch checks.
 The scene uses Cesium's [Viewer](https://cesium.com/learn/cesiumjs/ref-doc/Viewer.html)
 and [polyline entities](https://cesium.com/learn/cesiumjs/ref-doc/PolylineGraphics.html).
 
-## Aircraft and additional fixes
-Choose **Skylark**, **Swift**, or **Classic** above the map search. All use the
-original flight physics in both environments. The new GLB models are original,
-about 76 KB each, and have animated propellers. Rebuild them with
-`python3 tools/build_aircraft.py`; see `assets/README.md` for details.
+## Flight planner
+The original airplane is the only aircraft. Select a destination, then press
+**Take off**. Real world is the default; Sandbox is an optional practice mode.
+Controls and the leaderboard are in expandable sections. **C** or **View** changes
+the flight camera. The original chase distance and flight physics are retained.
+Older recordings with removed aircraft use the original airplane.
 
-New recordings save the aircraft selection. Flight duration and recording cadence
-now follow simulated flight time; hidden tabs pause, and finished scenes stop
-rendering. Touch steering tracks its own pointer, audio startup avoids duplicate
-contexts, wake locks clear when released, and video recording releases its tracks.
-
-Run `python3 tests/aircraft_smoke.py` with Playwright/Chromium installed to check
-both new models, respawn, timing, idle rendering, and aircraft metadata.
-Deployment uses the user service `open-skies.service` on port 8000; restart it with
-`systemctl --user restart open-skies.service` after changing server code.
-
-## Flight planner UI
-The landing page groups destinations and aircraft in two panels, with flight
-controls and scores in expandable sections. Product copy calls the scenery mode
-**Real world**; the underlying map integration and provider attribution remain.
-Skylark and Swift now use smooth shaded indexed geometry, finer wing profiles,
-framed glazing, angled struts, and detailed landing gear. Static geometry is
-batched by material, reducing model size and draw calls. The chase camera is
-closer for a clearer view of the aircraft.
-
-## Hangar / 03
-The home page now presents the aircraft first, with previews of the actual game
-models and an optional **View in 3D** inspection window. Choose a destination,
-then press **Take off**. Aircraft selection persists in this browser. **C** or the
-in-flight **View** button switches between chase and profile cameras.
-
-The 3D engine loads on demand, and takeoff waits for the selected model to be
-ready. Static resources revalidate after deployment. See `docs/UI-AUDIT.md` for
-the audit findings and validation scope.
-
-Run `python3 tests/hangar_smoke.py` for the end-to-end hangar checks.
-Regenerate the exact-model PNG previews with
-`python3 tools/render_aircraft_previews.py` (requires Playwright and Chromium).
+The engine loads on demand, and flight waits for the airplane to finish loading.
+Static resources revalidate after deployment. Mobile flight actions remain visible.
+Run `python3 tests/navigation_smoke.py` for menu, launch, model and mobile checks.
