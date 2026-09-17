@@ -14,37 +14,36 @@
   <!-- ============ LANDING ============ -->
   <section id="screen-landing" class="screen active">
     <div class="landing-inner">
-      <h1 class="title">✈️ Open Skies</h1>
-      <p class="subtitle">Fly over photorealistic 3D of the real world.</p>
-
-      <div id="vehicles" class="vehicle-row"></div>
-      <div id="quality" class="quality-row"></div>
-
-      <div class="world-picker" aria-label="Flight environment">
-        <button data-world="google" aria-pressed="true">Google Maps <small>Explore the real world</small></button>
-        <button data-world="sandbox" aria-pressed="false">Sandbox <small>Practice without Maps</small></button>
+      <header class="landing-header"><span class="brand-mark" aria-hidden="true">↗</span><span>OPEN SKIES</span><span class="header-note">A little freedom, at altitude.</span></header>
+      <div class="landing-hero"><p class="eyebrow">THE WORLD IS YOUR RUNWAY</p><h1 class="title">Find your next horizon.</h1><p class="subtitle">Choose your aircraft. Pick a place. Take to the sky.</p></div>
+      <div class="flight-planner">
+        <section class="destination-panel" aria-labelledby="destination-title">
+          <h2 id="destination-title" class="panel-title"><span>01</span> Choose your destination</h2>
+          <div class="world-picker" aria-label="Flight environment">
+            <button data-world="google" aria-pressed="true">Real world <small>Cities, coastlines & mountains</small></button>
+            <button data-world="sandbox" aria-pressed="false">Sandbox <small>A place to practice</small></button>
+          </div>
+          <div id="maps-panel">
+            <label class="field-label" for="place-input">Where would you like to fly?</label>
+            <div class="search-row"><input id="place-input" type="text" placeholder="Search a city or landmark" autocomplete="off" /><button id="btn-geo" class="ghost" title="Fly from my location">Near me ↗</button></div>
+            <h3 class="presets-heading">A few places to start</h3><div id="presets" class="presets"></div>
+          </div>
+          <div id="sandbox-panel" class="sandbox-panel" hidden>
+            <span class="eyebrow">ROOM TO FIND YOUR WINGS</span><h2>Meadow Airfield</h2><p>A countryside playground with an eight-gate course. Explore at your own pace.</p><button id="btn-sandbox" class="primary">Fly in Sandbox →</button><p class="sandbox-tip">Follow the gold gates. Hold Space to level your wings.</p>
+          </div>
+          <p id="landing-status" class="landing-status" role="status"></p>
+        </section>
+        <aside class="aircraft-panel" aria-labelledby="aircraft-title">
+          <h2 id="aircraft-title" class="panel-title"><span>02</span> Your aircraft</h2>
+          <div id="vehicles" class="vehicle-row"></div>
+          <div id="quality" class="quality-row"></div>
+          <p class="setup-note">Ready at cruising altitude.<br>Just pick a destination to take off.</p>
+        </aside>
       </div>
-      <div id="sandbox-panel" class="sandbox-panel" hidden>
-        <span class="eyebrow">PRACTICE · EXPLORE · PLAY</span>
-        <h2>Meadow Airfield</h2>
-        <p>An open countryside playground. Cruise over fields, follow the golden gates, or find your own route.</p>
-        <button id="btn-sandbox" class="primary">Fly in Sandbox →</button>
-        <p class="sandbox-tip">Pass through 8 gates in order. Hold Space to level your wings.</p>
+      <div class="landing-footer">
+        <details class="help-panel"><summary>Flight controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>F</b> flaps · <b>V</b> arcade / sim · <b>Esc</b> finish</p></details>
+        <details class="help-panel"><summary>Longest flights</summary><div id="landing-board" class="board"></div></details>
       </div>
-      <p id="landing-status" class="landing-status" role="status"></p>
-      <div id="maps-panel">
-      <div class="search-row">
-        <input id="place-input" type="text" placeholder="Where do you want to fly?" autocomplete="off" />
-        <button id="btn-geo" class="ghost" title="Fly from my location">📍 My location</button>
-      </div>
-      <h2 class="presets-heading">Or take off over</h2>
-      <div id="presets" class="presets"></div>
-      </div>
-
-      <h2 class="presets-heading">🏆 Leaderboard — longest flights</h2>
-      <div id="landing-board" class="board"></div>
-
-      <p class="hint">Controls: <b>W/S</b> pitch · <b>A/D</b> roll · <b>Q/E</b> rudder · <b>Shift/Ctrl</b> throttle · <b>F</b> flaps · <b>V</b> arcade/sim · <b>Space</b> level · <b>Esc</b> finish</p>
     </div>
   </section>
 

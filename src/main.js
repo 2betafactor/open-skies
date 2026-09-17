@@ -58,7 +58,7 @@ const app = {
 const QUALITY = [
   { id: "performance", label: "Performance" },
   { id: "balanced", label: "Balanced" },
-  { id: "quality", label: "Max Quality" },
+  { id: "quality", label: "High detail" },
 ];
 
 // ================= Google Maps loader =================
@@ -66,13 +66,13 @@ let mapsPromise;
 function loadMaps() {
   if (mapsPromise) return mapsPromise;
   const key = window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY;
-  if (!key || key === "YOUR_API_KEY_HERE") return Promise.reject(new Error("Google Maps needs an API key. Sandbox is ready to fly without one."));
+  if (!key || key === "YOUR_API_KEY_HERE") return Promise.reject(new Error("Real-world scenery is not configured yet. Sandbox is ready to fly."));
   mapsPromise = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Google Maps timed out. Try Sandbox or retry.")), 15000);
+    const timer = setTimeout(() => reject(new Error("Location search timed out. Try Sandbox or retry.")), 15000);
     window.initMaps = () => { clearTimeout(timer); if (!app.autocomplete) setupSearch(); resolve(); };
     const script = document.createElement("script");
     script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places&callback=initMaps&loading=async";
-    script.onerror = () => { clearTimeout(timer); reject(new Error("Google Maps could not load. Sandbox is still available.")); };
+    script.onerror = () => { clearTimeout(timer); reject(new Error("Location search is unavailable. Choose a featured destination or try Sandbox.")); };
     document.head.appendChild(script);
   }).catch(e => { mapsPromise = null; throw e; });
   return mapsPromise;
@@ -111,7 +111,7 @@ function initApp() {
   app.flight = new Flight("cesiumContainer");
   app.flight.onError = (e) => {
     const msg = (e && (e.message || e.toString())) || "unknown";
-    showError("3D render error: " + msg + " (details in console, F12)");
+    showError("The scenery could not be rendered. Try Performance graphics and reload.");
   };
   app.sceneReady = Promise.resolve();
 
@@ -153,7 +153,7 @@ function renderVehicles() {
     const btn = document.createElement("button");
     btn.setAttribute("aria-pressed", String(v.id === app.vehicle.id));
     btn.className = "vehicle-btn" + (v.id === app.vehicle.id ? " active" : "");
-    btn.innerHTML = `<span class="v-emoji">${v.emoji}</span><span class="v-name">${v.name}</span>`;
+    btn.innerHTML = `<span class="aircraft-icon" aria-hidden="true"><svg viewBox="0 0 80 60"><path d="M40 5c3 0 4 7 4 15l28 16v5L44 33v14l10 7v3l-14-4-14 4v-3l10-7V33L8 41v-5l28-16c0-8 1-15 4-15Z"/></svg></span><span class="aircraft-copy"><span class="v-name">${v.name}</span><span class="v-description">${v.description}</span><span class="v-spec">${v.spec}</span></span><span class="selected-dot" aria-hidden="true"></span>`;
     btn.addEventListener("click", () => {
       app.vehicle = v;
       for (const b of wrap.children) { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); }
@@ -170,12 +170,14 @@ function renderQuality() {
   wrap.innerHTML = '<span class="quality-cap">Graphics</span>';
   for (const q of QUALITY) {
     const btn = document.createElement("button");
+    btn.setAttribute("aria-pressed", String(q.id === app.quality));
     btn.className = "quality-btn" + (q.id === app.quality ? " active" : "");
     btn.textContent = q.label;
     btn.addEventListener("click", () => {
       app.quality = q.id;
       if (app.flight) app.flight.setQuality(q.id);
-      for (const b of wrap.querySelectorAll(".quality-btn")) b.classList.remove("active");
+      for (const b of wrap.querySelectorAll(".quality-btn")) { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); }
+      btn.setAttribute("aria-pressed", "true");
       btn.classList.add("active");
     });
     wrap.appendChild(btn);
@@ -517,7 +519,7 @@ async function takeOff(lat, lng, label, opts = {}) {
     showLoading(false);
     showScreen("landing");
     app.audio.suspend();
-    setLandingStatus(err.message || "Couldn't start that flight. Try another spot.", true);
+    setLandingStatus("Couldn’t load scenery at that destination. Try another place or Sandbox.", true);
   } finally {
     app.loading = false;
     if (app.cancelled) app.flight.dispose();
@@ -538,7 +540,7 @@ function beginFlight() {
   let lastCrashes = app.flight.crashes || 0;
   app.flight.onState = (s) => {
     app.hud.update(s);
-    document.getElementById("course-status").textContent = app.world === "sandbox" ? app.flight.sandbox.status(app.flight.position) : "Google Maps · free flight";
+    document.getElementById("course-status").textContent = app.world === "sandbox" ? app.flight.sandbox.status(app.flight.position) : "Real world · free flight";
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
     // Speed streaks ramp in above ~60% of top speed, max out near the redline.
@@ -792,7 +794,7 @@ async function watchFlight(id) {
     if (!flight || !flight.path || !flight.path.length) throw new Error("not found");
     if (app.cancelled) return;
     await app.flight.init(window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY, flight.world || "google");
-    document.getElementById("course-status").textContent = (flight.world === "sandbox" ? "Sandbox" : "Google Maps") + " · replay";
+    document.getElementById("course-status").textContent = (flight.world === "sandbox" ? "Sandbox" : "Real world") + " · replay";
     if (app.cancelled) return;
     app.flight.onState = s => app.hud.update(s);
     app.flight.onReplayEnd = () => {
@@ -806,7 +808,7 @@ async function watchFlight(id) {
     console.error(e);
     showLoading(false);
     goLanding();
-    setLandingStatus("Couldn’t load that flight. Google replays need a Maps key; Sandbox replays do not.", true);
+    setLandingStatus("Couldn’t load that flight. Please retry or start a new flight.", true);
   } finally {
     app.loading = false;
     if (app.cancelled) app.flight.dispose();

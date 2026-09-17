@@ -142,7 +142,7 @@ export class Flight {
   }
 
   async init(key, world = "sandbox") {
-    if (world === "google" && (!key || key === "YOUR_API_KEY_HERE")) throw new Error("Google Maps needs an API key. Choose Sandbox to fly without one.");
+    if (world === "google" && (!key || key === "YOUR_API_KEY_HERE")) throw new Error("Real-world scenery is not configured. Choose Sandbox to start flying.");
     if (this.viewer && this.world === world) { this.viewer.useDefaultRenderLoop = true; return this; }
     if (this.viewer) {
       this._teardown();
@@ -1222,7 +1222,7 @@ function wrap2pi(a) {
 }
 async function createGoogleTileset(C, key) {
   if (typeof C.createGooglePhotorealistic3DTileset !== "function") {
-    throw new Error("This Cesium build lacks Google 3D Tiles support.");
+    throw new Error("This version of the 3D engine cannot load real-world scenery.");
   }
   // enableCollision off: camera is driven by lookAtTransform (no tile collision),
   // and ground sampling uses sampleHeight (pick path), so collision geometry is wasted.

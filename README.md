@@ -21,7 +21,7 @@ Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static fi
 `W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Esc` / **Land** to finish.
 
 ## Run locally
-Run `python3 server.py` and open http://localhost:8000. **Google Maps** is the
+Run `python3 server.py` and open http://localhost:8000. **Real world** is the
 default, with the original location search, presets, and real-world flights.
 Choose **Sandbox**, then **Fly in Sandbox**, for the optional practice environment:
 a generated airfield, fields, trees, and an eight-gate
@@ -30,7 +30,7 @@ service. Cesium's engine and workers still load from a CDN, so an internet
 connection is required. Airfield buildings and trees are decorative; ground
 collision and respawn are enabled.
 
-For **Google Maps** mode:
+For **Real world** mode:
 1. Get a Google Maps API key ([Cloud Console](https://console.cloud.google.com/))
    and enable: **Map Tiles API**, **Maps JavaScript API**, **Places API**.
 2. `cp config.example.js config.js` and paste your key (config.js is gitignored).
@@ -91,7 +91,7 @@ and [polyline entities](https://cesium.com/learn/cesiumjs/ref-doc/PolylineGraphi
 ## Aircraft and additional fixes
 Choose **Skylark**, **Swift**, or **Classic** above the map search. All use the
 original flight physics in both environments. The new GLB models are original,
-about 110 KB each, and have animated propellers. Rebuild them with
+about 76 KB each, and have animated propellers. Rebuild them with
 `python3 tools/build_aircraft.py`; see `assets/README.md` for details.
 
 New recordings save the aircraft selection. Flight duration and recording cadence
@@ -103,3 +103,12 @@ Run `python3 tests/aircraft_smoke.py` with Playwright/Chromium installed to chec
 both new models, respawn, timing, idle rendering, and aircraft metadata.
 Deployment uses the user service `open-skies.service` on port 8000; restart it with
 `systemctl --user restart open-skies.service` after changing server code.
+
+## Flight planner UI
+The landing page groups destinations and aircraft in two panels, with flight
+controls and scores in expandable sections. Product copy calls the scenery mode
+**Real world**; the underlying map integration and provider attribution remain.
+Skylark and Swift now use smooth shaded indexed geometry, finer wing profiles,
+framed glazing, angled struts, and detailed landing gear. Static geometry is
+batched by material, reducing model size and draw calls. The chase camera is
+closer for a clearer view of the aircraft.
