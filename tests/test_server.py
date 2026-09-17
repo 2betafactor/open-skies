@@ -33,16 +33,16 @@ class ScoresTest(unittest.TestCase):
         return response.status, json.loads(response.read())
 
     def test_invalid_scores(self):
-        for data in ([], {'distanceKm': 'oops'}, {'timeSec': -1}, {'topSpeedKmh': float('inf')}, {'path': [[181, 0, 0, 0]]}, {'path': [[0, 0]]}, {'world': 'invalid'}, {'vehicle': '../other.glb'}):
+        for data in ([], {'distanceKm': 'oops'}, {'timeSec': -1}, {'topSpeedKmh': float('inf')}, {'path': [[181, 0, 0, 0]]}, {'path': [[0, 0]]}, {'world': 'invalid'}, {'world': 'sandbox'}, {'vehicle': '../other.glb'}):
             with self.subTest(data=data):
                 self.assertEqual(self.request('/api/scores', data)[0], 400)
 
-    def test_sandbox_replay_round_trip(self):
+    def test_real_world_replay_round_trip(self):
         path = [[0, 0, 350, 0], [0, .001, 350, 0]]
-        status, result = self.request('/api/scores', {'world': 'sandbox', 'vehicle': 'swift', 'path': path, 'distanceKm': 1})
+        status, result = self.request('/api/scores', {'world': 'google', 'vehicle': 'swift', 'path': path, 'distanceKm': 1})
         self.assertEqual(status, 201)
         status, flight = self.request('/api/flight?id=' + result['id'])
-        self.assertEqual(flight['world'], 'sandbox')
+        self.assertEqual(flight['world'], 'google')
         self.assertEqual(flight['vehicle'], 'swift')
         self.assertEqual(flight['path'], path)
         self.assertNotIn('path', result['board'][0])

@@ -116,7 +116,7 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError("invalid coordinates")
                 if data.get("vehicle", "plane") not in ("plane", "skylark", "swift"):
                     raise ValueError("invalid vehicle")
-                if data.get("world", "google") not in ("google", "sandbox"):
+                if data.get("world", "google") != "google":
                     raise ValueError("invalid world")
             except Exception:
                 return self._json({"error": "bad json"}, 400)

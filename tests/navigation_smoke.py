@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as data:
   page.goto(base,wait_until='networkidle')
   assert page.evaluate('!window.Cesium')
   assert page.locator('.vehicle-btn, #vehicles, #inspect-dialog').count()==0
-  assert page.locator('[data-world=google]').get_attribute('aria-pressed')=='true'
+  assert page.locator('[data-world], #sandbox-panel, #runway-start').count()==0
   page.evaluate("localStorage.setItem('open-skies.aircraft','swift')")
   page.locator('.preset-card').filter(has_text='Tokyo Bay').click()
   assert page.locator('#selected-route').inner_text()=='Tokyo Bay'
@@ -36,24 +36,7 @@ with tempfile.TemporaryDirectory() as data:
   assert page.evaluate('document.querySelector("#screen-landing").scrollWidth<=innerWidth')
   page.screenshot(path='/tmp/navigation-mobile.png')
   print('Home works without the 3D engine; single aircraft and explicit destination selection passed.',flush=True)
-  page.unroute('**/Cesium.js')
-  page.set_viewport_size({'width':1000,'height':760})
-  awaitable='''async () => {const {Flight}=await import('/src/flight.js?v=journey5');const start=Flight.prototype.start;Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}'''
-  page.evaluate(awaitable)
-  page.click('[data-world=sandbox]');page.click('#btn-sandbox')
-  page.wait_for_function('window.testFlight?._running',timeout=60000)
-  assert page.evaluate('testFlight.vehicleId')=='plane'
-  assert page.evaluate("testFlight.viewer.dataSourceDisplay.getBoundingSphere(testFlight.plane,false,new Cesium.BoundingSphere())===Cesium.BoundingSphereState.DONE")
-  page.keyboard.press('c')
-  assert page.evaluate('testFlight.cameraView')=='profile'
-  page.screenshot(path='/tmp/navigation-plane-flying.png')
-  page.set_viewport_size({'width':390,'height':844})
-  page.screenshot(path='/tmp/navigation-flight-mobile.png')
-  for button in ['btn-camera','btn-dismount']:
-    rect=page.locator('#'+button).bounding_box()
-    assert rect['x']>=0 and rect['x']+rect['width']<=390
-  page.keyboard.press('Escape')
+  assert 'Sandbox' not in page.locator('body').inner_text()
   assert not errors,errors
-  print('Original aircraft loaded before takeoff, and profile camera passed.',flush=True)
   b.close()
  http.shutdown();http.server_close()

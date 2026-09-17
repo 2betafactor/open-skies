@@ -15,9 +15,7 @@
 .route-panel { padding: 32px; background: #fff; border: 1px solid #dde3df; border-radius: 20px; min-width: 0; }
 #route-title { font-size: 2.1rem; font-weight: 550; letter-spacing: -.05em; line-height: 1; margin: 16px 0 8px; }
 .route-intro { margin: 0 0 20px; font-size: .95rem; color: #63777c; }
-#screen-landing .world-picker { display: flex; gap: 4px; padding: 4px; margin: 0 0 19px; border-radius: 10px; background: #f0f3f0; }
-#screen-landing .world-picker button { flex: 1; text-align: center; border: none; color: #63777c; background: transparent; padding: 9px; border-radius: 7px; font-size: .88rem; font-weight: 550; }
-#screen-landing .world-picker button[aria-pressed=true] { background: #fff; color: #2a454b; box-shadow: 0 2px 5px #263a3214; }
+
 #screen-landing .field-label { font-size: .85rem; margin: 0 0 8px; color: #5f7475; }
 #screen-landing .search-row { display: flex; flex-wrap: nowrap; gap: 6px; }
 #screen-landing #place-input { width: 100%; min-width: 0; max-width: none; flex: 1; padding: 12px; font-size: .95rem; color: #263c42; background: #fafbf8; border: 1px solid #dce3dc; border-radius: 9px; box-shadow: none; }
@@ -40,11 +38,7 @@
 #screen-landing .landing-status { min-height: 0; font-size: .7rem; line-height: 1.5; margin: 12px 0; color: #688074; }
 #screen-landing .landing-status:empty { display: none; }
 #screen-landing .landing-status.error { color: #a95438; }
-#screen-landing .sandbox-panel { padding: 17px 0 0; background: none; border: none; border-radius: 0; }
-.sandbox-symbol { display: grid; place-items: center; height: 78px; background: #eef3eb; color: #6f9770; font-size: 4rem; border-radius: 12px; }
-#screen-landing .sandbox-panel h3 { margin: 18px 0 8px; font-size: 1.35rem; font-weight: 550; }
-#screen-landing .sandbox-panel p { font-size: .82rem; color: #788a80; line-height: 1.7; }
-#screen-landing .sandbox-panel .sandbox-tip { font-size: .7rem; margin-bottom: 20px; }
+
 .home-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 24px; padding: 18px 0 0; color: #85958f; font-size: .8rem; }
 .home-footer > span:first-child { margin-right: auto; }
 .home-footer summary { cursor: pointer; color: #546e66; }
@@ -54,7 +48,7 @@
 
 #screen-landing .preset-card::after { content: none; }
 #screen-landing .primary:disabled { background: #c9d2cb; color: #f6faf7; cursor: default; box-shadow: none; }
-#screen-landing .world-picker button { min-height: 44px; }
+
 #screen-landing .quality-btn { min-height: 40px; }
 #screen-landing #place-input { font-size: 16px; }
 #screen-landing .field-label { display: block; }

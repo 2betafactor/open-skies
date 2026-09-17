@@ -1,4 +1,4 @@
-// audio.js — ambient music, throttle-responsive engine, wind and runway rumble.
+// audio.js — ambient music, throttle-responsive engine and wind.
 // Synthesized locally with Web Audio;
 // must be started from a user gesture (Take Off). Interface kept the same so the
 // rest of the app doesn't change: start / setThrottle / setSpeed / toggleMute.
@@ -111,9 +111,6 @@ export class EngineAudio {
     const engineFilter = ctx.createBiquadFilter(); engineFilter.type = "lowpass"; engineFilter.frequency.value = 240;
     this.engineGain = ctx.createGain(); this.engineGain.gain.value = .025;
     this.engine.frequency.value = 45; this.engine.connect(engineFilter).connect(this.engineGain).connect(this.master); this.engine.start();
-    this.groundGain = ctx.createGain(); this.groundGain.gain.value = 0;
-    const groundFilter = ctx.createBiquadFilter(); groundFilter.type = "lowpass"; groundFilter.frequency.value = 160;
-    noise.connect(groundFilter).connect(this.groundGain).connect(this.master);
     this._started = true;
     this._idx = 0;
     this._setChord(0);
@@ -135,9 +132,6 @@ export class EngineAudio {
     if (!this._started) return;
     this.engine.frequency.setTargetAtTime(40 + value * 100, this.ctx.currentTime, .5);
     this.engineGain.gain.setTargetAtTime(.018 + value * .06, this.ctx.currentTime, .5);
-  }
-  setGround(on, speed) {
-    if(this._started)this.groundGain.gain.setTargetAtTime(on ? Math.min(.14, speed / 900) : 0, this.ctx.currentTime, .2);
   }
   say(text) {
     if(this.muted || !window.speechSynthesis)return;

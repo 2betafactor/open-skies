@@ -1,5 +1,4 @@
-import { VEHICLES } from "./vehicles.js?v=journey5";
-import { Sandbox } from "./sandbox.js?v=journey5";
+import { VEHICLES } from "./vehicles.js?v=world6";
 // flight.js — arcade flight engine over Google Photorealistic 3D Tiles (Cesium).
 // Implements the "feel guide" reference model: rotational inertia, energy
 // exchange, velocity-lag, input shaping, spring auto-level, fixed 120 Hz step.
@@ -144,13 +143,12 @@ export class Flight {
     this._loadId = 0;
   }
 
-  async init(key, world = "sandbox") {
-    if (world === "google" && (!key || key === "YOUR_API_KEY_HERE")) throw new Error("Real-world scenery is not configured. Choose Sandbox to start flying.");
+  async init(key, world = "google") {
+    if (world !== "google") throw new Error("This flight environment is no longer available.");
+    if (!key || key === "YOUR_API_KEY_HERE") throw new Error("Real-world scenery is not configured.");
     if (this.viewer && this.world === world) { this.viewer.useDefaultRenderLoop = true; return this; }
     if (this.viewer) {
       this._teardown();
-      this.sandbox?.destroy();
-      this.sandbox = null;
       this.viewer.destroy();
       this.viewer = null;
       this.tileset = null;
@@ -179,7 +177,7 @@ export class Flight {
       console.error("Cesium render error:", e);
       this.onError(e);
     });
-    scene.globe.show = world === "sandbox";
+    scene.globe.show = false;
     scene.globe.baseColor = C.Color.fromCssColorString("#58784c");
     scene.skyAtmosphere.show = true; // blue sky (not black)
     scene.skyBox.show = false; // daytime — no starfield
@@ -199,11 +197,6 @@ export class Flight {
       intensity: 2.4,
     });
 
-    if (world === "sandbox") {
-      this.sandbox = new Sandbox(this.viewer);
-      this.setQuality(this._quality);
-      return this;
-    }
     try { this.tileset = await createGoogleTileset(C, key); }
     catch (e) { this.viewer.destroy(); this.viewer = null; throw e; }
     // Perf: coarser tiles = far less geometry to stream + draw. 16 is the default
@@ -221,7 +214,7 @@ export class Flight {
     return this;
   }
 
-  async spawn(lat, lng, onProgress = () => {}, opts = {}) {
+  async spawn(lat, lng, onProgress = () => {}) {
     const C = window.Cesium;
     this._teardown();
     const loadId = ++this._loadId;
@@ -260,7 +253,7 @@ export class Flight {
 
     // Find the local ground so we can spawn ABOVE it (canyon/alps safe).
     this.spawnGround = 0;
-    if (this.world !== "sandbox") try {
+    try {
       const carto = C.Cartographic.fromDegrees(sLng, sLat);
       const [res] = await this.viewer.scene.sampleHeightMostDetailed([carto]);
       if (res && isFinite(res.height)) this.spawnGround = res.height;
@@ -279,14 +272,6 @@ export class Flight {
     this._thrustN = this.throttle * this.P.maxThrust;
     log(`ground ${Math.round(this.spawnGround)}m → spawn ${Math.round(this.spawnGround + SPAWN_AGL)}m`);
 
-    this.sandbox?.reset();
-    if (this.world === "sandbox" && opts.runway) {
-      this.phase = "parked";
-      this._setPositionLL(-.0054, 0, 7);
-      this.throttle = 0; this.speed = 0;
-      this.velocity = new C.Cartesian3();
-      this._recomputeOrientation();
-    }
     this._addPlane();
 
     this._camHeading = this.heading;
@@ -746,7 +731,6 @@ export class Flight {
     if (!Number.isFinite(this.throttle)) this.throttle = 0.5;
     if (!Number.isFinite(this.speed)) this.speed = this.P.cruiseKmh / 3.6;
 
-    if (["parked", "rolling", "landed"].includes(this.phase)) { this._stepRunway(h); return; }
     if (this.airMotion) {
       const strength = this.weather === "rain" ? .055 : .025;
       this._rollVel += Math.sin((this._elapsed || 0) * 1.7) * strength * h;
@@ -787,7 +771,6 @@ export class Flight {
       this._sampleGround();
     }
     this.agl = this._groundValid ? this._aglFilt : 9999;
-    if (this.world === "sandbox" && this.alt < FLOOR_CRASH) { this._crash(); return true; }
     if (this._groundValid && this.agl < 4 && this._vspeed <= 0) {
       this._vspeed = 0;
       addScaled(this.position, b.u, 4 - this.agl); // rest ~4 m over ground, no crash
@@ -914,32 +897,7 @@ export class Flight {
     this.propAngle = wrap2pi(this.propAngle + (10 + this.throttle * 70) * h);
   }
 
-  // Shared altitude sampling + floor/ceiling assist. Returns true if it crashed.
-  _overRunway() {
-    const C = window.Cesium, c = C.Cartographic.fromCartesian(this.position);
-    return Math.abs(c.longitude / D2R * 111320) < 27 && Math.abs(c.latitude / D2R * 111320) < 735;
-  }
-
-  _stepRunway(h) {
-    const C = window.Cesium, c = this.controls;
-    this.throttle = clamp(this.throttle + c.throttle * .5 * h, 0, 1);
-    this.speed = Math.max(0, this.speed + (this.throttle * 5 - .4 - (1 - this.throttle) * 2.5) * h);
-    if (this.phase === "parked" && this.speed > .2) this.phase = "rolling";
-    this.heading = wrap2pi(this.heading + (c.rudder + c.roll * .4) * .22 * h * Math.min(1, this.speed / 8));
-    const basis = this._basisFor(this.heading, 0, 0);
-    addScaled(this.position, basis.F, this.speed * h);
-    const ll = C.Cartographic.fromCartesian(this.position);
-    this._setPositionLL(ll.latitude / D2R, ll.longitude / D2R, 7);
-    this.agl = 7; this.pitch = 0; this.roll = 0; this._vspeed = 0;
-    this.warning = this.speed * 3.6 >= 105 ? "ROTATE · PITCH UP" : "";
-    if (this.speed * 3.6 >= 105 && c.pitch > .15) {
-      this.phase = "airborne"; this.pitch = .10;
-      this._setPositionLL(ll.latitude / D2R, ll.longitude / D2R, 8);
-      this.velocity = scale(this._basisFor(this.heading, this.pitch, 0).F, this.speed);
-      this._velDir = null; this._graceUntil = performance.now() + 5000;
-    } else if (!this._overRunway()) this._crash();
-  }
-
+  // Visual atmosphere presets.
   setAtmosphere(time = "day", weather = "clear") {
     if (!this.viewer) return;
     const C = window.Cesium, scene = this.viewer.scene;
@@ -981,24 +939,6 @@ export class Flight {
       this._sampleGround();
     }
     this.agl = this._groundValid ? this._aglFilt : 9999;
-    if (this.world === "sandbox" && this._overRunway()) {
-      // Ground contact is accepted only for a stable, slow approach along the strip.
-      if (this.alt <= 7.2) {
-        const aligned = Math.abs(Math.sin(this.heading)) < .25;
-        if (aligned && Math.abs(this.roll) < .18 && this.speed < 48 && this._vspeed > -4 && Math.abs(this.pitch) < .22) {
-          const ll = C.Cartographic.fromCartesian(this.position);
-          this._setPositionLL(ll.latitude / D2R, ll.longitude / D2R, 7);
-          this.phase = "landed"; this.pitch = 0; this.roll = 0; this._pitchVel = 0; this._rollVel = 0;
-          this.warning = "TOUCHDOWN · THROTTLE DOWN TO BRAKE";
-          return true;
-        }
-        this._crash(); return true;
-      }
-      this.warning = this.alt < 50 ? "RUNWAY APPROACH · SLOW, WINGS LEVEL" : "";
-      return false;
-    }
-    if (this.world === "sandbox" && this.alt < FLOOR_CRASH) { this._crash(); return true; }
-
     const now = performance.now();
     const grace = now < this._graceUntil;
     if (this._groundValid && this.agl < FLOOR_WARN) {
@@ -1101,11 +1041,6 @@ export class Flight {
 
   _sampleGround() {
     const C = window.Cesium;
-    if (this.world === "sandbox") {
-      this._aglFilt = this.alt;
-      this._groundValid = true;
-      return;
-    }
     let ok = false;
     try {
       if (this.viewer.scene.sampleHeightSupported) {

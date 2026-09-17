@@ -1,14 +1,14 @@
-import { Journey } from "./journey.js?v=journey5";
-import { ensureEngine } from "./engine.js?v=journey5";
-import { VEHICLES } from "./vehicles.js?v=journey5";
+import { Journey } from "./journey.js?v=world6";
+import { ensureEngine } from "./engine.js?v=world6";
+import { VEHICLES } from "./vehicles.js?v=world6";
 // main.js — app state machine (landing → loading → flying), Google Maps loader
 // (Places), Cesium flight scene, presets.
 
-import { Flight, DEFAULT_PARAMS } from "./flight.js?v=journey5";
-import { Controller } from "./controller.js?v=journey5";
-import { EngineAudio } from "./audio.js?v=journey5";
-import { HUD } from "./hud.js?v=journey5";
-import { buildTuner } from "./tuner.js?v=journey5";
+import { Flight, DEFAULT_PARAMS } from "./flight.js?v=world6";
+import { Controller } from "./controller.js?v=world6";
+import { EngineAudio } from "./audio.js?v=world6";
+import { HUD } from "./hud.js?v=world6";
+import { buildTuner } from "./tuner.js?v=world6";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -70,36 +70,25 @@ let mapsPromise;
 function loadMaps() {
   if (mapsPromise) return mapsPromise;
   const key = window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY;
-  if (!key || key === "YOUR_API_KEY_HERE") return Promise.reject(new Error("Real-world scenery is not configured yet. Sandbox is ready to fly."));
+  if (!key || key === "YOUR_API_KEY_HERE") return Promise.reject(new Error("Real-world scenery is not configured yet. Please try again later."));
   mapsPromise = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Location search timed out. Try Sandbox or retry.")), 15000);
+    const timer = setTimeout(() => reject(new Error("Location search timed out. Choose a featured destination or retry.")), 15000);
     window.initMaps = () => { clearTimeout(timer); if (!app.autocomplete) setupSearch(); resolve(); };
     const script = document.createElement("script");
     script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places&callback=initMaps&loading=async";
-    script.onerror = () => { clearTimeout(timer); reject(new Error("Location search is unavailable. Choose a featured destination or try Sandbox.")); };
+    script.onerror = () => { clearTimeout(timer); reject(new Error("Location search is unavailable. Choose a featured destination or retry.")); };
     document.head.appendChild(script);
   }).catch(e => { mapsPromise = null; throw e; });
   return mapsPromise;
 }
-async function selectWorld(world) {
-  app.world = world;
-  document.querySelectorAll("[data-world]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.world === world)));
-  document.getElementById("sandbox-panel").hidden = world !== "sandbox";
-  document.getElementById("maps-panel").hidden = world !== "google";
-  document.getElementById("launch-panel").hidden = world !== "google";
-  setLandingStatus("");
-  journey?.plan();
-  if (world === "google") {
-    try { await loadMaps(); } catch (e) { if (app.world === "google") setLandingStatus(e.message, true); }
-  }
+async function prepareSearch() {
+  try { await loadMaps(); } catch (e) { setLandingStatus(e.message, true); }
 }
 
 // ================= Init =================
 function initApp() {
-  dlog("initializing independent flight modes");
+  dlog("initializing real-world flight");
   app.world = "google";
-  document.querySelectorAll("[data-world]").forEach(b => b.addEventListener("click", () => selectWorld(b.dataset.world)));
-  document.getElementById("btn-sandbox").addEventListener("click", () => takeOff(0, 0, "Meadow Airfield"));
   document.getElementById("place-input").addEventListener("input", e => {
     const pending = !!e.target.value.trim();
     document.getElementById("btn-takeoff").disabled = pending;
@@ -128,9 +117,9 @@ function initApp() {
 
   app.flight = new Flight("cesiumContainer");
   journey = new Journey(app, PRESETS, toast, entry => {
-    selectWorld(entry.world === "sandbox" ? "sandbox" : "google");
+    if (entry.world && entry.world !== "google") return;
     if(entry.start) selectDestination(entry.start);
-    document.getElementById("route-end").value = ["Local tour", "Northern fields"].includes(entry.target?.name) ? "local" : entry.target?.name || "";
+    document.getElementById("route-end").value = entry.target?.name === "Local tour" ? "local" : entry.target?.name || "";
     journey.plan();
   });
   app.flight.onError = (e) => {
@@ -164,7 +153,7 @@ function initApp() {
   if (sharedId) app.sceneReady.then(() => watchFlight(sharedId)).catch(() => showScreen("landing"));
   else {
     showScreen("landing");
-    selectWorld("google");
+    prepareSearch();
   }
 }
 
@@ -492,7 +481,7 @@ function setLandingStatus(msg, isError = false) {
 }
 
 // ================= Take off =================
-async function takeOff(lat, lng, label, opts = {}) {
+async function takeOff(lat, lng, label) {
   if (app.loading) return;
   app.loading = true;
   app.cancelled = false;
@@ -515,10 +504,9 @@ async function takeOff(lat, lng, label, opts = {}) {
 
     app.flight.setQuality(app.quality);
     app.flight.setVehicle(app.vehicle);
-    opts = { ...opts, runway: app.world === "sandbox" && document.getElementById("runway-start").checked };
     await app.flight.spawn(lat, lng, (frac, lbl) => {
       if (!app.cancelled) setLoading(frac, lbl);
-    }, opts);
+    });
     if (app.cancelled) return;
 
     showLoading(false);
@@ -530,7 +518,7 @@ async function takeOff(lat, lng, label, opts = {}) {
     showScreen("landing");
     app.audio.suspend();
     app.flight.dispose();
-    setLandingStatus("Couldn’t load scenery at that destination. Try another place or Sandbox.", true);
+    setLandingStatus("Couldn’t load scenery at that destination. Try another place or retry.", true);
   } finally {
     app.loading = false;
     if (app.cancelled) app.flight.dispose();
@@ -553,7 +541,7 @@ function beginFlight() {
   app.flight.onState = (s) => {
     app.hud.update(s);
     journey.update(s);
-    document.getElementById("course-status").textContent = app.vehicle.name + " · " + (app.world === "sandbox" ? app.flight.sandbox.status(app.flight.position) : "Free flight");
+    document.getElementById("course-status").textContent = app.vehicle.name + " · Free flight";
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
     // Speed streaks ramp in above ~60% of top speed, max out near the redline.
@@ -808,11 +796,16 @@ async function watchFlight(id) {
     const r = await fetch("/api/flight?id=" + encodeURIComponent(id));
     const flight = await r.json();
     if (!flight || !flight.path || !flight.path.length) throw new Error("not found");
+    if (flight.world && flight.world !== "google") {
+      showLoading(false);goLanding();
+      setLandingStatus("This recording uses a retired environment. Choose a destination to start a new flight.", true);
+      return;
+    }
     if (app.cancelled) return;
     await ensureEngine();
     if (app.cancelled) return;
     await app.flight.init(window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY, flight.world || "google");
-    document.getElementById("course-status").textContent = (flight.world === "sandbox" ? "Sandbox" : "Real world") + " · replay";
+    document.getElementById("course-status").textContent = "Real world · replay";
     if (app.cancelled) return;
     app.flight.onState = s => app.hud.update(s);
     app.flight.onReplayEnd = () => {
@@ -834,6 +827,7 @@ async function watchFlight(id) {
 }
 
 function goLanding() {
+  if (!app.autocomplete) loadMaps().catch(() => {});
   document.body.classList.remove("replaying");
   showScreen("landing");
   renderBoard("landing-board");

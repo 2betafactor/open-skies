@@ -23,13 +23,6 @@ Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static fi
 ## Run locally
 Run `python3 server.py` and open http://localhost:8000. **Real world** is the
 default, with the original location search, presets, and real-world flights.
-Choose **Sandbox**, then **Fly in Sandbox**, for the optional practice environment:
-a generated airfield, fields, trees, and an eight-gate
-practice course. It makes no Google requests and requires no API key or paid map
-service. Cesium's engine and workers still load from a CDN, so an internet
-connection is required. Airfield buildings and trees are decorative; ground
-collision and respawn are enabled.
-
 For **Real world** mode:
 1. Get a Google Maps API key ([Cloud Console](https://console.cloud.google.com/))
    and enable: **Map Tiles API**, **Maps JavaScript API**, **Places API**.
@@ -69,56 +62,40 @@ src/{controller,hud,audio,tuner}.js
 assets/plane.glb           aircraft model (CC0)
 ```
 
-## Audit and verification
-- App startup and Sandbox no longer depend on Google loading successfully.
-- Google scripts and tiles load only when their mode is requested; search, presets,
-  and location-based flights remain available.
-- Saved flights retain their environment; older recordings default to Google.
-- Fixed replay clock starting before scenery finished loading, score submission
-  errors appearing on the wrong screen, input capture in text fields, and time
-  formatting producing `:60`. Restored Performance graphics settings.
-- Scores reject malformed/non-finite values and invalid paths; requests are size
-  limited. Private repository files and raw score storage are not served.
-- Scores are still client reported, not cheat resistant. Flight paths retain the
-  existing 800-point recording limit (about 6 minutes 40 seconds).
+## Flight planner and personal journeys
+The original airplane is the only aircraft. Select a real-world destination and
+press **Take off**. Flights start airborne. There is no environment selector or
+practice airfield.
 
-Run API regression tests with `python3 -m unittest discover -s tests -v`.
-With Python Playwright and Chromium installed, run `python3 tests/browser_smoke.py`
-for Google-blocked Sandbox course, replay, mobile, and mode-switch checks.
-The scene uses Cesium's [Viewer](https://cesium.com/learn/cesiumjs/ref-doc/Viewer.html)
-and [polyline entities](https://cesium.com/learn/cesiumjs/ref-doc/PolylineGraphics.html).
+- **Plan & flight conditions** offers optional destination guidance, distance and
+  cruise-time estimates, local tours, time-of-day effects, haze/rain, gentle air
+  motion, discovery notes and opt-in radio announcements. Weather is a visual
+  preset, not live weather; source imagery retains photographed lighting.
+- **Return** guides you back to departure. **H / Hide HUD** hides secondary
+  instruments while retaining warnings, navigation, touch controls and credits.
+- **P / Save photo** adds an image to the travel journal. **Finish** saves flight
+  duration, distance, discoveries and a schematic route to your logbook.
+- **Logbook & journal** retains up to 60 entries on this browser/device, with
+  favorites, route revisiting, photo downloads, JSON export and entry deletion.
+  Storage failures are reported. Recordings retain the existing 800-point limit.
+- Engine sound responds to throttle, wind to speed. Radio uses browser speech and
+  is off by default. Flight conditions and accessibility preferences persist.
+- Records from retired environments remain readable/exportable in the journal,
+  but cannot be launched. Shared links for retired flights explain their status
+  and return to destination selection. New scores accept real-world flights only.
 
-## Flight planner
-The original airplane is the only aircraft. Select a destination, then press
-**Take off**. Real world is the default; Sandbox is an optional practice mode.
-Controls and the leaderboard are in expandable sections. **C** or **View** changes
-the flight camera. The original chase distance and flight physics are retained.
-Older recordings with removed aircraft use the original airplane.
+## Verification
+Run `python3 -m unittest discover -s tests -v` for API and asset-access checks.
+With Python Playwright/Chromium installed, run:
 
-The engine loads on demand, and flight waits for the airplane to finish loading.
-Static resources revalidate after deployment. Mobile flight actions remain visible.
-Run `python3 tests/navigation_smoke.py` for menu, launch, model and mobile checks.
+- `python3 tests/navigation_smoke.py`: destination selection and mobile menu.
+- `python3 tests/journal_menu_smoke.py`: preferences, revisit, export, deletion,
+  and storage-failure handling.
+- `python3 tests/browser_smoke.py`: retired replay and archived-journal handling.
+- `python3 tests/journey_smoke.py`: real-world launch contract, original GLB
+  rendering, weather, minimal view, photo capture and logbook persistence. The
+  external tile provider is stubbed in this check; production imagery coverage
+  and API permissions require a configured live account.
 
-## Personal journeys
-- **Logbook & journal** stores up to 60 flights/photos on the current browser and
-  device. Records include duration, distance, a schematic track, discovered places,
-  favorites and a route to revisit. Entries can be deleted or exported as JSON;
-  photos can be downloaded. Storage failures are reported, not silently ignored.
-- **Plan & flight conditions** adds optional destination bearings and distance,
-  cruise-time estimates, a short local tour, daylight/sunrise/sunset, haze/rain,
-  gentle air motion and opt-in radio announcements. Weather is a visual preset,
-  not live conditions; photographed real-world shadows remain in the source imagery.
-- **Sandbox runway start** begins stationary at Meadow Airfield. Increase throttle
-  with Shift or the touch lever; hold W/up at 105 km/h to rotate. Land aligned with
-  the strip, below 173 km/h, under 4 m/s descent, with wings close to level. Reduce
-  throttle to brake; Finish saves the flight. Unsafe contacts and runway excursions
-  respawn airborne. Uncheck runway start for the previous airborne practice mode.
-  Real-world flights retain their airborne starts; city scenery is not a runway.
-- **Return** guides you back to the departure point. **H / Hide HUD** removes
-  secondary instruments while retaining warnings, guidance, touch controls and
-  map credits. **P / Save photo** adds a picture to your travel journal.
-- Flight audio adds engine pitch and volume tied to throttle, wind and runway
-  rumble. Radio uses the browser's speech voice and is off by default.
-
-Run `python3 tests/journey_smoke.py` for route calculations, browser persistence,
-runway state transitions, weather rendering, minimal view and photo/logbook flows.
+Static files revalidate after deployment. The engine loads on demand and flight
+waits for the airplane model. Scores remain client reported, not cheat resistant.
