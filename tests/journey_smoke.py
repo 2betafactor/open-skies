@@ -15,8 +15,6 @@ with tempfile.TemporaryDirectory() as data:
   page.route('**/*google*',lambda r:r.abort())
   page.route('https://tile.googleapis.com/**',lambda r:r.fulfill(json={'asset':{'version':'1.0'},'geometricError':0,'root':{'boundingVolume':{'sphere':[0,0,0,6378137]},'geometricError':0,'refine':'ADD','children':[]}}))
   page.goto(f'http://localhost:{http.server_port}',wait_until='networkidle')
-  page.select_option('#route-end','local')
-  assert '10.0 km' in page.locator('#route-estimate').inner_text()
   checks=page.evaluate('''async()=>{const {routeInfo,Journal}=await import('/src/journey.js?v=fleet7');const r=routeInfo({lat:0,lng:0},{lat:0,lng:1});const j=new Journal();j.save({kind:'flight',name:'Persistence check',distanceKm:1});const next=new Journal();return {distance:Math.abs(r.km-111.195)<.01,bearing:r.bearing===90,persist:next.entries[0].name==='Persistence check'};}''')
   assert all(checks.values()),checks
   page.screenshot(path='/tmp/journey-home.png')

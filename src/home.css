@@ -65,10 +65,7 @@
 }
 #screen-landing .preset-card:hover { transform: none; box-shadow: none; background: #edf4f1; border-color: #91aaa8; }
 #screen-landing .quality-btn { box-shadow: none; }
-.route-guidance { margin-top:18px; padding-top:15px; border-top:1px solid #dde3df; }
-.route-guidance label { display:block; font-size:.78rem; color:#5d756c; font-weight:600; }
-.route-guidance select,.radio-controls select { width:100%; margin-top:7px; padding:10px; border:1px solid #bdcbc7; border-radius:8px; background:#fafbf8; color:#233940; font-size:16px; }
-#route-estimate { color:#63777c; font-size:.78rem; line-height:1.5; margin:8px 0 0; }
+.radio-controls select { width:100%; margin-top:7px; padding:10px; border:1px solid #bdcbc7; border-radius:8px; background:#fafbf8; color:#233940; font-size:16px; }
 .radio-panel { margin-top:14px; padding:13px; border:1px solid #dbe4df; border-radius:12px; background:#f7faf7; }
 .radio-heading { display:flex; justify-content:space-between; gap:8px; font-size:.82rem; color:#2f5447; }
 #radio-location { color:#8a9a91; font-size:.7rem; font-weight:500; }

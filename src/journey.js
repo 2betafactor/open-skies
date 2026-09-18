@@ -46,11 +46,6 @@ const $=id=>document.getElementById(id);
 export class Journey {
   constructor(app, presets, notify, revisit) {
     this.app=app;this.presets=presets;this.notify=notify;this.revisit=revisit;this.journal=new Journal();
-    const dest=$('route-end');
-    for(const p of presets) {const o=document.createElement('option');o.value=p.name;o.textContent=p.name;dest.append(o);}
-    // Nearby touring routes make the planner useful without hours of travel.
-    dest.add(new Option('Local tour · 10 km north','local'));
-    dest.addEventListener('change',()=>this.plan());
     $('btn-journal').onclick=()=>{this.render();$('journal-dialog').showModal();};
     $('journal-close').onclick=()=>$('journal-dialog').close();
     $('btn-photo').onclick=()=>this.photo();
@@ -61,22 +56,13 @@ export class Journey {
   }
   plan() {
     const start=this.app.destination;
-    const select=$('route-end');
-    for(const o of select.options) {
-      o.disabled=!!o.value && o.value===start.name;
-      if(o.value==='local')o.textContent='Local tour · 10 km north';
-    }
-    if(select.selectedOptions[0]?.disabled)select.value='';
-    const choice=select.value;
-    this.destination=choice==='local'?{name:'Local tour',lat:Math.min(89.9,start.lat+.09),lng:start.lng}:this.presets.find(p=>p.name===choice);
+    this.destination=null;
     this.start=start;
-    const r=this.destination?routeInfo(start,this.destination,this.app.vehicle.params.cruiseKmh):null;
-    $('route-estimate').textContent=r?`${start.name} → ${this.destination.name} · ${r.km.toFixed(1)} km · about ${Math.max(1,Math.round(r.minutes))} min at cruise`:'Explore freely, or choose an optional destination.';
   }
   begin() {
     this.plan();this.discovered=new Set();this.arrived=false;
     this.departure={...this.start};this.target=this.destination?{...this.destination}:null;
-    $('journey-nav').hidden=false;
+    $('journey-nav').hidden=true;
     document.querySelector('.journey-actions').hidden=false;
   }
   update(s) {
@@ -85,7 +71,6 @@ export class Journey {
     const phase=f.phase;
     let line='';
     if(this.target){const r=routeInfo(here,this.target);line=`${this.target.name} · ${r.km.toFixed(1)} km · steer ${Math.round(r.bearing).toString().padStart(3,'0')}°`;if(r.km<.5&&!this.arrived&&phase==='airborne'){this.arrived=true;this.notify('Destination reached — enjoy the view.');if($('radio').checked)this.app.audio.say('Destination reached.');}}
-    else line='Open route';
     $('journey-nav').textContent=line;
     const places=this.presets;
     for(const p of places)if(!this.discovered.has(p.name)&&routeInfo(here,p).km<2){this.discovered.add(p.name);$('discovery-note').textContent=`${p.name} · ${PLACE_NOTES[p.name] || p.desc}`;clearTimeout(this.noteTimer);this.noteTimer=setTimeout(()=>$('discovery-note').textContent='',12000);break;}

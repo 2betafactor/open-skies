@@ -125,7 +125,6 @@ function initApp() {
     if (entry.world && entry.world !== "google") return;
     chooseAircraft(entry.vehicle || "plane");
     if(entry.start) selectDestination(entry.start);
-    document.getElementById("route-end").value = entry.target?.name === "Local tour" ? "local" : entry.target?.name || "";
     journey.plan();
   });
   app.flight.onError = (e) => {
@@ -516,6 +515,7 @@ async function takeOff(lat, lng, label) {
   // await — or Safari leaves the context suspended and there's no engine sound.
   app.audio.setAircraft(app.vehicle.type);
   app.audio.start();
+  radio?.start();
 
   showScreen("ride");
   if (app.flight.viewer) app.flight.viewer.resize();

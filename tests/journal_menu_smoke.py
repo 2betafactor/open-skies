@@ -21,7 +21,6 @@ with tempfile.TemporaryDirectory() as data:
   assert json.loads(Path(download.value.path()).read_text())['world']=='google'
   page.get_by_role('button',name='Plan this flight',exact=True).click()
   assert page.locator('#selected-route').inner_text()=='Manhattan'
-  assert page.locator('#route-end').input_value()=='local'
   page.click('#btn-journal');page.get_by_role('button',name='Delete entry',exact=True).click()
   assert page.locator('.journal-card').count()==0
   result=page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=fleet7');const j=new Journal(),old=Storage.prototype.setItem;let rejected=false;Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError')};try{j.save({kind:'flight',name:'Must not save'})}catch{rejected=true}finally{Storage.prototype.setItem=old}return rejected&&j.entries.length===0&&new Journal().entries.length===0;}''')
