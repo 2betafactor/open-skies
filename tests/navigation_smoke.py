@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory() as data:
   page.route('**/Cesium.js',lambda r:r.abort())
   page.goto(base,wait_until='networkidle')
   assert page.evaluate('!window.Cesium')
-  assert page.locator('.aircraft-option').count()==2
+  assert page.locator('.aircraft-option').count()==3
   assert page.locator('[data-aircraft=plane]').get_attribute('aria-pressed')=='true'
   page.click('[data-aircraft=spaceship]')
   assert page.locator('[data-aircraft=spaceship]').get_attribute('aria-pressed')=='true'

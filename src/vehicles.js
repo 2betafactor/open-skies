@@ -10,4 +10,9 @@ export const VEHICLES = [
     params: { cruiseKmh: 300, minSpeedKmh: 40, maxSpeedKmh: 720, maxRollRateDeg: 90, maxPitchRateDeg: 48,
       turnFactor: .85, throttleLag: 1.3, rotEase: 7, velLag: .18, energyFactor: 0, turnBleed: .025,
       camBack: 32, camUp: 10, camTau: .24, flapForce: 0 } },
+  { id: "cyberwing", name: "Cyberwing", description: "Neon stealth interceptor", type: "plane",
+    uri: "assets/cyberwing.glb?v=cyber1", preview: "assets/cyberwing-preview.png?v=cyber1", scale: 1, yaw: -90, pitch: 0, roll: 0,
+    params: { mass: 3400, wingArea: 24, maxThrust: 15000, cd0: .024, kInduced: .04, clMax: 1.55,
+      cruiseKmh: 280, minSpeedKmh: 110, maxSpeedKmh: 620, maxRollRateDeg: 65, maxPitchRateDeg: 30,
+      turnFactor: .52, throttleLag: 2.2, rotEase: 5.5, velLag: .35, camBack: 30, camUp: 9, camTau: .26, flapForce: 0 } },
 ];

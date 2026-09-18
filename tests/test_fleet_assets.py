@@ -3,7 +3,7 @@ import unittest,json,struct,math
 from pathlib import Path
 class FleetAssets(unittest.TestCase):
  def test_glb_geometry(self):
-  for name in ['aerion','wayfarer']:
+  for name in ['aerion','wayfarer','cyberwing']:
    b=(Path(__file__).resolve().parents[1]/'assets'/f'{name}.glb').read_bytes()
    magic,version,total=struct.unpack_from('<III',b)
    self.assertEqual((magic,version,total),(0x46546c67,2,len(b)))

@@ -46,7 +46,7 @@ const $=id=>document.getElementById(id);
 export class Journey {
   constructor(app, presets, notify, revisit) {
     this.app=app;this.presets=presets;this.notify=notify;this.revisit=revisit;this.journal=new Journal();
-    $('btn-journal').onclick=()=>{this.render();$('journal-dialog').showModal();};
+    if($('btn-journal'))$('btn-journal').onclick=()=>{this.render();$('journal-dialog').showModal();};
     $('journal-close').onclick=()=>$('journal-dialog').close();
     $('btn-photo').onclick=()=>this.photo();
     $('btn-minimal').onclick=()=>this.toggleMinimal();

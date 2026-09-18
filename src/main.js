@@ -113,7 +113,7 @@ function initApp() {
   setupResult();
   setupTouch();
   speedFx.init();
-  renderBoard("landing-board");
+  if(document.getElementById("landing-board")) renderBoard("landing-board");
   document.getElementById("btn-share").addEventListener("click", shareFlight);
   document.getElementById("btn-record").addEventListener("click", recordAndShare);
   document.getElementById("btn-fly-now").addEventListener("click", dismount); // leave replay → landing
@@ -858,7 +858,7 @@ function goLanding() {
   if (!app.autocomplete) loadMaps().catch(() => {});
   document.body.classList.remove("replaying");
   showScreen("landing");
-  renderBoard("landing-board");
+  if(document.getElementById("landing-board")) renderBoard("landing-board");
 }
 
 async function renderBoard(elId, highlight) {

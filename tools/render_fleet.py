@@ -13,8 +13,8 @@ with sync_playwright() as p:
  page.route('**/preview',lambda r:r.fulfill(content_type='text/html',body=html))
  page.goto(f'http://localhost:{http.server_port}/preview',wait_until='networkidle')
  page.evaluate('''()=>{const C=Cesium;C.Ion.defaultAccessToken=undefined;window.viewer=new C.Viewer('scene',{baseLayer:false,baseLayerPicker:false,geocoder:false,homeButton:false,sceneModePicker:false,navigationHelpButton:false,fullscreenButton:false,timeline:false,animation:false,infoBox:false,selectionIndicator:false,contextOptions:{webgl:{alpha:true,preserveDrawingBuffer:true}}});const s=viewer.scene;s.globe.show=false;s.skyBox.show=false;s.skyAtmosphere.show=false;s.sun.show=false;s.moon.show=false;s.backgroundColor=C.Color.TRANSPARENT;s.light=new C.DirectionalLight({direction:new C.Cartesian3(-.8,-.3,-.6),intensity:2.3});window.origin=C.Cartesian3.fromDegrees(0,0,1000);}''')
- for name in ['aerion','wayfarer']:
-  page.evaluate('''name=>{viewer.entities.removeAll();window.model=viewer.entities.add({position:origin,orientation:Cesium.Transforms.headingPitchRollQuaternion(origin,new Cesium.HeadingPitchRoll(-Math.PI/2,0,0)),model:{uri:'/assets/'+name+'.glb',scale:1}});viewer.camera.lookAt(origin,new Cesium.HeadingPitchRange(name==='wayfarer'?.85:3.9,-.42,24));}''',name)
+ for name in ['aerion','wayfarer','cyberwing']:
+  page.evaluate('''name=>{viewer.entities.removeAll();window.model=viewer.entities.add({position:origin,orientation:Cesium.Transforms.headingPitchRollQuaternion(origin,new Cesium.HeadingPitchRoll(-Math.PI/2,0,0)),model:{uri:'/assets/'+name+'.glb',scale:1}});viewer.camera.lookAt(origin,new Cesium.HeadingPitchRange(name==='wayfarer'?.85:name==='cyberwing'?3.5:3.9,-.42,24));}''',name)
   page.wait_for_function('viewer.dataSourceDisplay.getBoundingSphere(model,false,new Cesium.BoundingSphere())===Cesium.BoundingSphereState.DONE',timeout=60000)
   page.wait_for_timeout(1500)
   result=page.evaluate("()=>{viewer.render();return viewer.scene.canvas.toDataURL('image/png').split(',')[1]}")
