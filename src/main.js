@@ -489,10 +489,13 @@ function setupGeolocation() {
       setLandingStatus("Geolocation isn't available in this browser.", true);
       return;
     }
-    setLandingStatus("Finding you…");
+    const button = document.getElementById("btn-geo");
+    button.disabled = true;
+    button.textContent = "◎ Finding you…";
+    setLandingStatus("Allow location access to start from where you are.");
     navigator.geolocation.getCurrentPosition(
-      (pos) => { if (app.world === "google") selectDestination({lat: pos.coords.latitude, lng: pos.coords.longitude, name: "Your location"}); },
-      () => setLandingStatus("Couldn't get your location. Try searching instead.", true),
+      (pos) => { button.disabled = false; button.textContent = "◎ Use my location"; if (app.world === "google") selectDestination({lat: pos.coords.latitude, lng: pos.coords.longitude, name: "Your location"}); },
+      () => { button.disabled = false; button.textContent = "◎ Use my location"; setLandingStatus("Location access was unavailable. You can search or choose a featured place.", true); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   });

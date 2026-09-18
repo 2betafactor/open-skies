@@ -20,7 +20,8 @@
 #screen-landing .search-row { display: flex; flex-wrap: nowrap; gap: 6px; }
 #screen-landing #place-input { width: 100%; min-width: 0; max-width: none; flex: 1; padding: 12px; font-size: .95rem; color: #263c42; background: #fafbf8; border: 1px solid #dce3dc; border-radius: 9px; box-shadow: none; }
 #screen-landing #place-input::placeholder { color: #a0aaa5; }
-#screen-landing #btn-geo { flex: 0 0 39px; padding: 0; width: 39px; border: 1px solid #dce3dc; background: #fafbf8; color: #55706e; border-radius: 9px; box-shadow: none; font-size: 1.2rem; }
+#screen-landing #btn-geo { display:block; width:100%; margin-top:8px; padding:10px 12px; border:1px solid #cfe0d5; background:#eef6f0; color:#356c54; border-radius:9px; box-shadow:none; font-size:.82rem; font-weight:650; }
+#screen-landing #btn-geo:hover { background:#e2f0e6; border-color:#a9c7b2; }
 .presets-header { margin: 17px 0 8px; font-size: .8rem; color: #83918c; }
 #screen-landing .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 #screen-landing .preset-card { display: grid; grid-template-columns: 24px minmax(0,1fr); grid-template-rows: 1fr; gap: 5px; padding: 10px 8px; min-height: 48px; border-radius: 8px; background: #fafbf8; border: 1px solid #e8ece6; color: #496064; }
