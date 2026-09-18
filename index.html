@@ -17,11 +17,11 @@
       <header class="home-header"><a href="/" class="home-brand"><span aria-hidden="true">↗</span> OPEN SKIES</a><span class="home-tagline">Your own piece of sky.</span><button id="btn-help" class="text-button">How to fly ↗</button></header>
       <main class="home-layout">
         <section class="route-panel" aria-labelledby="route-title">
-          <span class="section-kicker">FREE FLIGHT</span><h1 id="route-title">Where will you fly?</h1><p class="route-intro">Choose a destination. Take to the skies.</p>
-          <fieldset class="aircraft-picker"><legend>Your aircraft</legend><div id="aircraft-options"></div><p id="aircraft-note">Aerion · Twin-engine touring jet</p></fieldset>
+          <h1 id="route-title">Where will you fly?</h1><p class="route-intro">Choose a destination.</p>
+          <fieldset class="aircraft-picker" aria-label="Choose aircraft"><div id="aircraft-options"></div></fieldset>
           <div id="maps-panel"><label for="place-input" class="field-label">Search a city or landmark</label><div class="search-row"><input id="place-input" placeholder="Where do you want to go?" autocomplete="off" /><button id="btn-geo" title="Use my location" aria-label="Use my location">◎</button></div><div class="presets-header">Or choose a destination</div><div id="presets" class="presets"></div></div>
           <p id="landing-status" role="status" class="landing-status"></p>
-          <div id="launch-panel"><div class="launch-summary"><span id="selected-route">Manhattan</span><span id="selected-aircraft">Aerion</span></div><button id="btn-takeoff" class="primary">Take off →</button></div>
+          <div id="launch-panel"><div class="launch-summary"><span id="selected-route">Manhattan</span></div><button id="btn-takeoff" class="primary">Take off →</button></div>
           <details class="flight-options"><summary>Plan & flight conditions</summary>
             <label for="route-end">Destination guidance</label><select id="route-end"><option value="">Free exploration</option></select><p id="route-estimate"></p>
             <div class="conditions-grid"><label>Time of day<select id="time-of-day"><option value="day">Daylight</option><option value="sunrise">Sunrise</option><option value="sunset">Sunset</option></select></label><label>Weather<select id="weather"><option value="clear">Clear</option><option value="haze">Haze</option><option value="rain">Light rain</option></select></label></div>
@@ -32,7 +32,7 @@
           </details><div id="quality" class="quality-row"></div>
         </section>
       </main>
-      <footer class="home-footer"><span>Free flight. No finish line.</span><button id="btn-journal" class="text-button">Logbook & journal</button><details id="controls-help"><summary>Controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>H</b> hide HUD · <b>P</b> save photo<br><b>C</b> camera · <b>F</b> flaps · <b>V</b> arcade / sim (airplane) · <b>Esc</b> finish</p></details><details><summary>Flight leaderboard</summary><div id="landing-board" class="board"></div></details></footer>
+      <footer class="home-footer"><button id="btn-journal" class="text-button">Logbook & journal</button><details id="controls-help"><summary>Controls</summary><p><b>W / S</b> pitch · <b>A / D</b> roll · <b>Q / E</b> rudder<br><b>Shift / Ctrl</b> throttle · <b>Space</b> level wings<br><b>H</b> hide HUD · <b>P</b> save photo<br><b>C</b> camera · <b>F</b> flaps · <b>V</b> arcade / sim (airplane) · <b>Esc</b> finish</p></details><details><summary>Flight leaderboard</summary><div id="landing-board" class="board"></div></details></footer>
     </div>
   </section>
 

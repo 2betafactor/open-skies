@@ -178,8 +178,6 @@ function renderAircraft() {
     const label = document.createElement("span");label.textContent = v.name;
     button.append(img,label);button.addEventListener("click",()=>chooseAircraft(v.id));wrap.append(button);
   }
-  document.getElementById("selected-aircraft").textContent = app.vehicle.name;
-  document.getElementById("aircraft-note").textContent = app.vehicle.description + (app.vehicle.type === "spaceship" ? " · Faster, assisted flight over Earth" : " · Smooth banking and gradual thrust");
 }
 
 function renderQuality() {
@@ -567,7 +565,7 @@ function beginFlight() {
   app.flight.onState = (s) => {
     app.hud.update(s);
     journey.update(s);
-    document.getElementById("course-status").textContent = app.vehicle.name + " · Free flight";
+    document.getElementById("course-status").textContent = "";
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
     // Speed streaks ramp in above ~60% of top speed, max out near the redline.
@@ -831,7 +829,7 @@ async function watchFlight(id) {
     await ensureEngine();
     if (app.cancelled) return;
     await app.flight.init(window.HORSEBACK_CONFIG?.GOOGLE_MAPS_API_KEY, flight.world || "google");
-    document.getElementById("course-status").textContent = "Real world · replay";
+    document.getElementById("course-status").textContent = "";
     if (app.cancelled) return;
     app.flight.onState = s => app.hud.update(s);
     app.flight.onReplayEnd = () => {

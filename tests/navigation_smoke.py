@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as data:
   assert page.locator('.aircraft-option').count()==2
   assert page.locator('[data-aircraft=plane]').get_attribute('aria-pressed')=='true'
   page.click('[data-aircraft=spaceship]')
-  assert page.locator('#selected-aircraft').inner_text()=='Wayfarer'
+  assert page.locator('[data-aircraft=spaceship]').get_attribute('aria-pressed')=='true'
   assert page.locator('[data-world], #sandbox-panel, #runway-start').count()==0
   page.locator('.preset-card').filter(has_text='Tokyo Bay').click()
   assert page.locator('#selected-route').inner_text()=='Tokyo Bay'
