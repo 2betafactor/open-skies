@@ -132,22 +132,22 @@ def ship():
 def cyber():
  # A compact cyberpunk interceptor: faceted black body, swept delta wings,
  # smoked canopy and emissive cyan/magenta edge lighting.
- m=Model();body=m.mat('Obsidian composite',[.018,.025,.045],.72,.24);panel=m.mat('Violet armor',[.12,.035,.22],.72,.28);glass=m.mat('Smoked canopy',[.015,.035,.08],.9,.08);metal=m.mat('Gunmetal',[.18,.2,.27],.9,.22);cyan=m.mat('Cyan neon',[.01,.45,.8],.15,.2,[.01,.8,1]);pink=m.mat('Magenta neon',[.7,.015,.35],.15,.2,[1,.02,.38]);amber=m.mat('Amber marker',[.95,.28,.03],.2,.3,[1,.1,.01])
+ m=Model();body=m.mat('Obsidian composite',[.018,.03,.055],.72,.24);panel=m.mat('Indigo armor',[.06,.075,.18],.72,.28);glass=m.mat('Smoked canopy',[.02,.07,.13],.9,.08);metal=m.mat('Gunmetal',[.18,.2,.27],.9,.22);cyan=m.mat('Cyan neon',[.01,.55,.9],.15,.2,[.01,.9,1]);pink=m.mat('Magenta neon',[.8,.015,.38],.15,.2,[1,.02,.45]);amber=m.mat('Amber marker',[.95,.28,.03],.2,.3,[1,.1,.01])
  stations=[(-6.8,0,.04,.05),(-6.2,0,.25,.28),(-4.7,0,.48,.5),(-2.2,0,.63,.62),(1.2,0,.58,.56),(3.6,-.08,.4,.4),(5.7,-.2,.08,.1),(6.2,-.23,.02,.02)]
  m.body(body,stations,n=8)
  m.ellipsoid(panel,(-.2,.22,0),(2.8,.48,.54),16,8)
  m.ellipsoid(glass,(1.25,.48,0),(1.85,.38,.42),16,8)
  for side in [-1,1]:
   # Broad swept delta wing and a thin neon leading edge.
-  m.foil(panel,[(2.4,3.8,1.0,.08,.1),(-1.6,2.2,5.8,.0,.08),(-4.7,.75,7.5,-.18,.06)],side)
-  m.foil(cyan,[(2.35,.32,1.0,.1,.035),(-1.55,.18,5.7,.02,.03),(-4.65,.08,7.35,-.16,.025)],side)
+  m.foil(panel,[(2.4,3.3,1.0,.08,.1),(-1.6,2.0,4.7,.0,.08),(-4.7,.7,5.8,-.18,.06)],side)
+  m.foil(cyan,[(2.35,.32,1.0,.1,.035),(-1.55,.18,4.6,.02,.03),(-4.65,.08,5.65,-.16,.025)],side)
   # Twin rear nacelles with glowing exhaust rings.
   z=side*1.45
   m.body(metal,[(-5.4,-.05,.3,.3),(-4.3,-.05,.42,.42),(-2.4,-.05,.38,.38),(-1.7,-.05,.18,.18)],cz=z,n=16)
   m.body(body,[(-5.48,-.05,.29,.29),(-5.62,-.05,.22,.22)],cz=z,n=16)
   m.body(pink,[(-5.65,-.05,.21,.21),(-5.74,-.05,.13,.13)],cz=z,n=16)
   m.ellipsoid(cyan,(-5.9,-.05,z),(.25,.16,.16),12,6)
-  m.ellipsoid(amber,(3.9,.08,side*2.7),(.11,.06,.06),10,5)
+  m.ellipsoid(amber,(3.9,.08,side*2.35),(.11,.06,.06),10,5)
  # Dorsal fin and tail light.
  m.foil(panel,[(-2.1,.9,.35,0,.07),(-3.8,.3,1.25,0,.05),(-4.6,.12,1.45,0,.04)],vertical=True)
  m.ellipsoid(pink,(-4.85,.06,0),(.12,.07,.07),10,5)
