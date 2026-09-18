@@ -29,12 +29,12 @@ export const DEFAULT_PARAMS = {
   rudderRateDeg: 25,
   rotEase: 8, // higher = snappier rotation
   energyFactor: 0.45, // dive→fast, climb→slow
-  turnFactor: 0.7, // yawRate = sin(roll)*turnFactor
+  turnFactor: 0.55, // yawRate = sin(roll)*turnFactor; gentle bank coupling keeps trim straight
   turnBleed: 0.05, // speed lost in turns
-  velLag: 0.4, // s, velocity eases toward nose (drift through turns)
+  velLag: 0.25, // s, velocity eases toward nose without a persistent heading drift
   throttleLag: 1.5, // s, engine response
   autoFreq: 2.2, // auto-level spring frequency
-  autoDamp: 0.6, // <1 → slight wing-rock overshoot
+  autoDamp: 0.95, // near-critical damping prevents hands-off wing rock
   pitchClampDeg: 60,
   rollClampDeg: 80,
   ambientDeg: 0, // idle air drift (0 = perfectly steady; raise for life)
@@ -224,6 +224,9 @@ export class Flight {
     this._targetLL = null;
     this.spawnLL = { lat: sLat, lng: sLng };
     this.phase = "airborne";
+    // A new flight always starts hands-off. This also clears a held touch/key
+    // input if the previous flight ended while a control was pressed.
+    Object.assign(this.controls, { pitch: 0, roll: 0, rudder: 0, throttle: 0, level: false });
     this.heading = 0;
     this.pitch = 0;
     this.roll = 0;
@@ -702,7 +705,8 @@ export class Flight {
     this.pitch = clamp(this.pitch + this._pitchVel * h, -P.pitchClampDeg * D2R, P.pitchClampDeg * D2R);
 
     // Banked-turn coupling + rudder.
-    const yawRate = Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R;
+    const neutral = Math.abs(inR) < 0.01 && Math.abs(inRud) < 0.01 && Math.abs(this.roll) < 0.004 && Math.abs(this._rollVel) < 0.01;
+    const yawRate = neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R;
     this.heading = wrap2pi(this.heading + yawRate * h);
 
     // Energy exchange + turn bleed.

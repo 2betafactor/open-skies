@@ -1,4 +1,5 @@
 const API='https://de1.api.radio-browser.info/json/stations/search';
+const NIGHTRIDE={name:'Nightride FM · EQ',country:'Online',codec:'MP3',url:'https://stream.nightride.fm/nightride.mp3'};
 const FALLBACK=[
   {name:'BBC World Service',country:'United Kingdom',codec:'MP3',url:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service',geo_lat:51.5,geo_long:-.12},
   {name:'Radio Paradise',country:'United States',codec:'MP3',url:'https://stream.radioparadise.com/aac-320',geo_lat:38.9,geo_long:-122.7},
@@ -10,7 +11,7 @@ export class Radio {
   constructor(notify){this.notify=notify;this.audio=new Audio();this.audio.preload='none';this.station=null;this.stations=[];this.bind();}
   bind(){const locate=$('radio-locate'),select=$('radio-stations'),stop=$('radio-stop');if(!locate)return;locate.onclick=()=>this.find();select.onchange=()=>{const s=this.stations[Number(select.value)];if(s)this.play(s);};stop.onclick=()=>this.stop();this.audio.addEventListener('error',()=>{this.status('This station could not be reached. Choose another station.');stop.disabled=true;});}
   status(text){const el=$('radio-status');if(el)el.textContent=text;}
-  start(){this.auto=true;return this.find();}
+  start(){this.load([NIGHTRIDE,...FALLBACK],'Nightride FM');this.play(NIGHTRIDE);}
   async find(){const button=$('radio-locate');button.disabled=true;this.status('Requesting your location…');let pos;try{pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:9000,maximumAge:300000}));}catch{this.load(FALLBACK,'Worldwide picks');button.disabled=false;this.status('Location was unavailable, so here are reliable digital stations.');if(this.auto){this.auto=false;this.play(FALLBACK[0]);}return;}
     const here={lat:pos.coords.latitude,lng:pos.coords.longitude};let stations=[];try{const u=new URL(API);u.searchParams.set('has_geo_info','true');u.searchParams.set('is_https','true');u.searchParams.set('hidebroken','true');u.searchParams.set('order','clickcount');u.searchParams.set('reverse','true');u.searchParams.set('limit','200');const res=await fetch(u);if(!res.ok)throw Error('directory');const data=await res.json();stations=data.filter(s=>Number.isFinite(Number(s.geo_lat))&&Number.isFinite(Number(s.geo_long))&&(s.url_resolved||s.url)).map(s=>({...s,url:s.url_resolved||s.url,_distance:distance(here,{lat:Number(s.geo_lat),lng:Number(s.geo_long)})})).sort((a,b)=>a._distance-b._distance).slice(0,18);}catch{}
     const list=stations.length?stations:FALLBACK;this.load(list,stations.length?'Nearby stations':'Worldwide picks');button.disabled=false;this.status(stations.length?'Choose a nearby station to start playback.':'The directory is unavailable, so here are reliable digital stations.');if(this.auto){this.auto=false;this.play(list[0]);}

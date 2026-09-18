@@ -107,10 +107,6 @@ export class EngineAudio {
     noise.connect(wbp).connect(this.windGain).connect(this.master);
     noise.start();
 
-    this.engine = ctx.createOscillator(); this.engine.type = "sawtooth";
-    const engineFilter = ctx.createBiquadFilter(); engineFilter.type = "lowpass"; engineFilter.frequency.value = 240;
-    this.engineGain = ctx.createGain(); this.engineGain.gain.value = .025;
-    this.engine.frequency.value = 45; this.engine.connect(engineFilter).connect(this.engineGain).connect(this.master); this.engine.start();
     this._started = true;
     this._idx = 0;
     this._setChord(0);
@@ -131,9 +127,8 @@ export class EngineAudio {
   setAircraft(type) { this.aircraftType = type; }
 
   setThrottle(value) {
-    if (!this._started) return;
-    this.engine.frequency.setTargetAtTime((this.aircraftType === "spaceship" ? 80 + value * 160 : 40 + value * 100), this.ctx.currentTime, .5);
-    this.engineGain.gain.setTargetAtTime(.018 + value * .06, this.ctx.currentTime, .5);
+    // Engine oscillators were intentionally removed: the synthesized buzz was
+    // distracting under live radio. Keep this method for the flight HUD API.
   }
   say(text) {
     if(this.muted || !window.speechSynthesis)return;
