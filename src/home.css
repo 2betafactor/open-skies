@@ -40,6 +40,8 @@
 #screen-landing .landing-status.error { color: #a95438; }
 
 .home-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 24px; padding: 18px 0 0; color: #85958f; font-size: .8rem; }
+.home-leaderboard { flex:1 1 280px; min-width:0; max-width:380px; box-sizing:border-box; padding:12px 14px; border:1px solid #dbe4df; border-radius:12px; background:#f7faf7; }
+.home-leaderboard h2 { margin:0 0 8px; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:#557267; }
 .home-footer > span:first-child { margin-right: auto; }
 .home-footer summary { cursor: pointer; color: #546e66; }
 .home-footer details { max-width: 380px; }.home-footer details p { line-height: 1.9; }.home-footer .board { min-width: 270px; margin-top: 12px; }.home-footer .board-row { color: #263f37; }
@@ -63,14 +65,16 @@
 }
 #screen-landing .preset-card:hover { transform: none; box-shadow: none; background: #edf4f1; border-color: #91aaa8; }
 #screen-landing .quality-btn { box-shadow: none; }
-.flight-options { margin-top: 20px; padding-top: 16px; border-top: 1px solid #dde3df; font-size: .9rem; }
-.flight-options summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
-.flight-options label { display: block; margin-top: 12px; }
-.flight-options select { display: block; width: 100%; margin-top: 8px; padding: 11px; border: 1px solid #bdcbc7; border-radius: 8px; background: #fafbf8; color: #233940; font-size: 16px; }
-.conditions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-#route-estimate, .option-note { color: #63777c; font-size: .8rem; line-height: 1.6; }
-#screen-landing .check-option { display: flex; align-items: center; gap: 9px; margin: 12px 0; font-size: .85rem; }
-.check-option input { width: 18px; height: 18px; accent-color: #c85d39; }
+.route-guidance { margin-top:18px; padding-top:15px; border-top:1px solid #dde3df; }
+.route-guidance label { display:block; font-size:.78rem; color:#5d756c; font-weight:600; }
+.route-guidance select,.radio-controls select { width:100%; margin-top:7px; padding:10px; border:1px solid #bdcbc7; border-radius:8px; background:#fafbf8; color:#233940; font-size:16px; }
+#route-estimate { color:#63777c; font-size:.78rem; line-height:1.5; margin:8px 0 0; }
+.radio-panel { margin-top:14px; padding:13px; border:1px solid #dbe4df; border-radius:12px; background:#f7faf7; }
+.radio-heading { display:flex; justify-content:space-between; gap:8px; font-size:.82rem; color:#2f5447; }
+#radio-location { color:#8a9a91; font-size:.7rem; font-weight:500; }
+#radio-status { margin:6px 0 10px; color:#667d74; font-size:.75rem; line-height:1.4; }
+.radio-controls { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:6px; align-items:center; }
+.radio-controls .small { white-space:nowrap; padding:9px 10px; }
 #journal-dialog { width: min(780px,94vw); max-height: 90dvh; background: #f3f4f0; color: #233940; border: 1px solid #bdcbc7; border-radius: 18px; padding: 24px; }
 #journal-dialog::backdrop { background: #102329b8; }
 #journal-dialog header { display:flex; justify-content:space-between; align-items:center; gap:12px; }

@@ -55,9 +55,6 @@ export class Journey {
     $('journal-close').onclick=()=>$('journal-dialog').close();
     $('btn-photo').onclick=()=>this.photo();
     $('btn-minimal').onclick=()=>this.toggleMinimal();
-    const settingIds=['time-of-day','weather','air-motion','radio','discoveries'];
-    try{const saved=JSON.parse(localStorage.getItem('open-skies.preferences')||'{}');for(const id of settingIds){const el=$(id);if(el.type==='checkbox'&&typeof saved[id]==='boolean')el.checked=saved[id];else if([...el.options||[]].some(o=>o.value===saved[id]))el.value=saved[id];}}catch{}
-    for(const id of settingIds)$(id).addEventListener('change',()=>{this.apply();try{localStorage.setItem('open-skies.preferences',JSON.stringify(Object.fromEntries(settingIds.map(key=>[key,$(key).type==='checkbox'?$(key).checked:$(key).value]))));}catch{}});
     window.addEventListener('keydown',e=>{if(!app.flying||e.repeat||e.target?.matches('input,textarea,select,[contenteditable=true]'))return;if(e.code==='KeyH')this.toggleMinimal();if(e.code==='KeyP')this.photo();});
     $('btn-return').onclick=()=>{this.target={...this.departure};this.arrived=false;this.notify('Guidance set to your departure point.');};
     this.plan();
@@ -76,17 +73,11 @@ export class Journey {
     const r=this.destination?routeInfo(start,this.destination,this.app.vehicle.params.cruiseKmh):null;
     $('route-estimate').textContent=r?`${start.name} → ${this.destination.name} · ${r.km.toFixed(1)} km · about ${Math.max(1,Math.round(r.minutes))} min at cruise`:'Explore freely, or choose an optional destination.';
   }
-  apply() {
-    const f=this.app.flight;if(!f?.viewer)return;
-    f.airMotion=$('air-motion').checked;
-    f.setAtmosphere($('time-of-day').value,$('weather').value);
-  }
   begin() {
-    this.plan();this.discovered=new Set();this.arrived=false;this.apply();
+    this.plan();this.discovered=new Set();this.arrived=false;
     this.departure={...this.start};this.target=this.destination?{...this.destination}:null;
     $('journey-nav').hidden=false;
     document.querySelector('.journey-actions').hidden=false;
-    if($('radio').checked)this.app.audio.say('Open Skies. Enjoy your flight.');
   }
   update(s) {
     const f=this.app.flight,C=window.Cesium,c=C.Cartographic.fromCartesian(f.position),here={lat:C.Math.toDegrees(c.latitude),lng:C.Math.toDegrees(c.longitude)};
@@ -94,9 +85,8 @@ export class Journey {
     const phase=f.phase;
     let line='';
     if(this.target){const r=routeInfo(here,this.target);line=`${this.target.name} · ${r.km.toFixed(1)} km · steer ${Math.round(r.bearing).toString().padStart(3,'0')}°`;if(r.km<.5&&!this.arrived&&phase==='airborne'){this.arrived=true;this.notify('Destination reached — enjoy the view.');if($('radio').checked)this.app.audio.say('Destination reached.');}}
-    else line='Free exploration';
+    else line='Open route';
     $('journey-nav').textContent=line;
-    if(!$('discoveries').checked)return;
     const places=this.presets;
     for(const p of places)if(!this.discovered.has(p.name)&&routeInfo(here,p).km<2){this.discovered.add(p.name);$('discovery-note').textContent=`${p.name} · ${PLACE_NOTES[p.name] || p.desc}`;clearTimeout(this.noteTimer);this.noteTimer=setTimeout(()=>$('discovery-note').textContent='',12000);break;}
   }

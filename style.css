@@ -950,6 +950,7 @@ body.replaying .replay-bar { display: block; }
 body.replaying #touch-controls { display: none !important; } /* no joysticks in replay */
 body.replaying #btn-record,
 body.replaying #btn-share { display: none; } /* can't record/photo a replay */
+body.replaying .journey-actions, body.replaying .throttle-wrap, body.replaying #btn-tune, body.replaying #btn-mute { display:none !important; }
 .replay-badge {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0) + 54px);

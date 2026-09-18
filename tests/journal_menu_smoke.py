@@ -1,4 +1,4 @@
-"""Menu-only checks for saved preferences, revisit, export, deletion and storage errors."""
+"""Menu-only checks for revisit, export, deletion and storage errors."""
 import sys,tempfile,threading,json
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -13,12 +13,8 @@ with tempfile.TemporaryDirectory() as data:
   page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   page.route('**/*google*',lambda r:r.abort())
   page.goto(f'http://localhost:{http.server_port}',wait_until='networkidle')
-  page.locator('.flight-options summary').click()
-  page.select_option('#weather','haze');page.uncheck('#air-motion')
   page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=fleet7');const j=new Journal();j.save({kind:'flight',name:'Manhattan',world:'google',start:{name:'Manhattan',lat:40.758,lng:-73.9855},target:{name:'Local tour',lat:.025,lng:.012},timeSec:30,distanceKm:1,path:[[0,0,7,0],[0,.001,50,0]]});}''')
   page.reload(wait_until='networkidle')
-  assert page.locator('#weather').input_value()=='haze'
-  assert not page.locator('#air-motion').is_checked()
   page.click('#btn-journal');assert page.locator('.journal-card svg').count()==1
   with page.expect_download() as download:
    page.get_by_role('button',name='Export journey',exact=True).click()

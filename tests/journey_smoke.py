@@ -1,4 +1,4 @@
-"""Journey persistence, real-world launch contract, weather and minimal HUD."""
+"""Journey persistence, real-world launch contract and minimal HUD."""
 import sys, tempfile, threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -15,12 +15,10 @@ with tempfile.TemporaryDirectory() as data:
   page.route('**/*google*',lambda r:r.abort())
   page.route('https://tile.googleapis.com/**',lambda r:r.fulfill(json={'asset':{'version':'1.0'},'geometricError':0,'root':{'boundingVolume':{'sphere':[0,0,0,6378137]},'geometricError':0,'refine':'ADD','children':[]}}))
   page.goto(f'http://localhost:{http.server_port}',wait_until='networkidle')
-  page.locator('.flight-options summary').click()
   page.select_option('#route-end','local')
   assert '10.0 km' in page.locator('#route-estimate').inner_text()
   checks=page.evaluate('''async()=>{const {routeInfo,Journal}=await import('/src/journey.js?v=fleet7');const r=routeInfo({lat:0,lng:0},{lat:0,lng:1});const j=new Journal();j.save({kind:'flight',name:'Persistence check',distanceKm:1});const next=new Journal();return {distance:Math.abs(r.km-111.195)<.01,bearing:r.bearing===90,persist:next.entries[0].name==='Persistence check'};}''')
   assert all(checks.values()),checks
-  page.select_option('#time-of-day','sunset');page.select_option('#weather','rain')
   page.screenshot(path='/tmp/journey-home.png')
   page.evaluate('''async()=>{const {Flight}=await import('/src/flight.js?v=fleet7');const start=Flight.prototype.start;Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}''')
   page.locator('.quality-btn').filter(has_text='Performance').click()
@@ -29,7 +27,6 @@ with tempfile.TemporaryDirectory() as data:
   print('Launching with external tiles stubbed',flush=True)
   page.click('#btn-takeoff');page.wait_for_function('window.testFlight?._running',timeout=60000)
   assert page.evaluate('testFlight.phase')=='airborne'
-  assert page.evaluate('testFlight.weather')=='rain'
   page.wait_for_timeout(1000)
   assert page.evaluate("testFlight.world==='google' && testFlight.vehicleId==='plane'")
   assert page.evaluate("testFlight.viewer.dataSourceDisplay.getBoundingSphere(testFlight.plane,false,new Cesium.BoundingSphere())===Cesium.BoundingSphereState.DONE")
@@ -54,6 +51,6 @@ with tempfile.TemporaryDirectory() as data:
   assert page.locator('.journal-card').count()==3
   assert page.locator('.journal-card button[aria-pressed=true]').count()==1
   assert not errors,errors
-  print('Weather rendering, minimal HUD, photo capture, flight log, favorite and reload persistence passed.',flush=True)
+  print('Minimal HUD, photo capture, flight log, favorite and reload persistence passed.',flush=True)
   b.close()
  http.shutdown();http.server_close()

@@ -68,10 +68,9 @@ spaceship for atmospheric exploration. Select a real-world destination and
 press **Take off**. Flights start airborne. There is no environment selector or
 practice airfield.
 
-- **Plan & flight conditions** offers optional destination guidance, distance and
-  cruise-time estimates, local tours, time-of-day effects, haze/rain, gentle air
-  motion, discovery notes and opt-in radio announcements. Weather is a visual
-  preset, not live weather; source imagery retains photographed lighting.
+- **Route guidance** offers optional destinations, distance and cruise-time
+  estimates, while local digital radio can find nearby stations after location
+  permission and lets you switch or stop playback.
 - **Return** guides you back to departure. **H / Hide HUD** hides secondary
   instruments while retaining warnings, navigation, touch controls and credits.
 - **P / Save photo** adds an image to the travel journal. **Finish** saves flight
@@ -79,8 +78,8 @@ practice airfield.
 - **Logbook & journal** retains up to 60 entries on this browser/device, with
   favorites, route revisiting, photo downloads, JSON export and entry deletion.
   Storage failures are reported. Recordings retain the existing 800-point limit.
-- Engine sound responds to throttle, wind to speed. Radio uses browser speech and
-  is off by default. Flight conditions and accessibility preferences persist.
+- Engine sound responds to throttle and wind to speed. Radio playback is optional
+  and stays off until the player chooses a station.
 - Records from retired environments remain readable/exportable in the journal,
   but cannot be launched. Shared links for retired flights explain their status
   and return to destination selection. New scores accept real-world flights only.

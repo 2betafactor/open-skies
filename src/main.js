@@ -9,6 +9,7 @@ import { Controller } from "./controller.js?v=fleet7";
 import { EngineAudio } from "./audio.js?v=fleet7";
 import { HUD } from "./hud.js?v=fleet7";
 import { buildTuner } from "./tuner.js?v=fleet7";
+import { Radio } from "./radio.js?v=radio8";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -45,6 +46,7 @@ const PRESETS = [
 ];
 
 let journey;
+let radio;
 const app = {
   audio: new EngineAudio(),
   hud: null,
@@ -118,6 +120,7 @@ function initApp() {
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
   app.flight = new Flight("cesiumContainer");
+  radio = new Radio(toast);
   journey = new Journey(app, PRESETS, toast, entry => {
     if (entry.world && entry.world !== "google") return;
     chooseAircraft(entry.vehicle || "plane");
