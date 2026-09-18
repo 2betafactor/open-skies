@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as data:
   assert page.locator('#screen-landing').is_visible()
   assert 'retired environment' in page.locator('#landing-status').inner_text()
   assert not engine
-  page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=world6');new Journal().save({kind:'flight',name:'Old practice flight',world:'sandbox',start:{lat:0,lng:0,name:'Old practice flight'},path:[[0,0,350,0],[0,.001,350,0]]});const {Flight}=await import('/src/flight.js?v=world6');let rejected=false;try{await new Flight('unused').init(null,'sandbox')}catch{rejected=true}if(!rejected)throw Error('Retired world accepted');}''')
+  page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=fleet7');new Journal().save({kind:'flight',name:'Old practice flight',world:'sandbox',start:{lat:0,lng:0,name:'Old practice flight'},path:[[0,0,350,0],[0,.001,350,0]]});const {Flight}=await import('/src/flight.js?v=fleet7');let rejected=false;try{await new Flight('unused').init(null,'sandbox')}catch{rejected=true}if(!rejected)throw Error('Retired world accepted');}''')
   page.click('#btn-journal')
   assert 'Archived flight' in page.locator('#journal-entries').inner_text()
   assert page.get_by_role('button',name='Plan this flight',exact=True).count()==0

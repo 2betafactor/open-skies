@@ -72,7 +72,7 @@ class Handler(SimpleHTTPRequestHandler):
                 except FileNotFoundError:
                     pass
             return self._text('window.HORSEBACK_CONFIG = { GOOGLE_MAPS_API_KEY: %s };' % json.dumps(API_KEY))
-        if self.path.startswith("/api/flight"):
+        if urlsplit(self.path).path == "/api/flight":
             fid = ""
             if "?" in self.path:
                 for kv in self.path.split("?", 1)[1].split("&"):
@@ -81,7 +81,7 @@ class Handler(SimpleHTTPRequestHandler):
             with LOCK:
                 entry = next((e for e in load() if e.get("id") == fid), None)
             return self._json(entry or {"error": "not found"}, 200 if entry else 404)
-        if self.path.startswith("/api/scores"):
+        if urlsplit(self.path).path == "/api/scores":
             with LOCK:
                 top = sorted(load(), key=lambda x: -x.get("distanceKm", 0))[:20]
             return self._json([{k: v for k, v in e.items() if k != "path"} for e in top])
@@ -94,7 +94,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith("/api/scores"):
+        if urlsplit(self.path).path == "/api/scores":
             try:
                 n = int(self.headers.get("Content-Length", 0))
                 if n <= 0 or n > 256000:
@@ -114,7 +114,7 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError("invalid point")
                     if not -180 <= point[0] <= 180 or not -90 <= point[1] <= 90:
                         raise ValueError("invalid coordinates")
-                if data.get("vehicle", "plane") not in ("plane", "skylark", "swift"):
+                if data.get("vehicle", "plane") not in ("plane", "spaceship", "skylark", "swift"):
                     raise ValueError("invalid vehicle")
                 if data.get("world", "google") != "google":
                     raise ValueError("invalid world")
@@ -135,11 +135,11 @@ class Handler(SimpleHTTPRequestHandler):
                 "vehicle": data.get("vehicle", "plane"),
             }
             with LOCK:
-                scores = load()
+                # Always retain the flight whose share link we return, even below the leaderboard.
+                scores = sorted(load(), key=lambda x: -x.get("distanceKm", 0))[:299]
                 scores.append(entry)
-                scores = sorted(scores, key=lambda x: -x.get("distanceKm", 0))[:300]
                 save(scores)
-                top = scores[:20]
+                top = sorted(scores, key=lambda x: -x.get("distanceKm", 0))[:20]
             return self._json({"id": entry["id"], "board": [{k: v for k, v in e.items() if k != "path"} for e in top]}, 201)
         self.send_response(404)
         self.end_headers()

@@ -1,10 +1,25 @@
 // Personal journeys stay in this browser; no account or upload required.
-export function routeInfo(a, b) {
+export function routeInfo(a, b, cruiseKmh = 180) {
   const rad=Math.PI/180, p=a.lat*rad, q=b.lat*rad, dl=(b.lng-a.lng)*rad;
   const h=Math.sin((q-p)/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(dl/2)**2;
   const km=6371*2*Math.atan2(Math.sqrt(Math.min(1,h)),Math.sqrt(Math.max(0,1-h)));
   const bearing=(Math.atan2(Math.sin(dl)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(dl))/rad+360)%360;
-  return {km,bearing,minutes:km/3};
+  return {km,bearing,minutes:km/Math.max(1, cruiseKmh)*60};
+}
+// Unwrap date-line crossings and fit the recorded track without stretching it.
+export function trackPoints(path) {
+  const coords=[];
+  for(const p of path) {
+    const previous=coords.at(-1);
+    const x=previous ? previous[0]+((p[0]-previous[0]+540)%360)-180 : p[0];
+    coords.push([x,p[1]]);
+  }
+  const latitude=coords.reduce((sum,p)=>sum+p[1],0)/coords.length;
+  const horizontal=Math.max(.01,Math.cos(latitude*Math.PI/180));
+  const xs=coords.map(p=>p[0]*horizontal),ys=coords.map(p=>p[1]);
+  const minX=Math.min(...xs),minY=Math.min(...ys),dx=Math.max(...xs)-minX,dy=Math.max(...ys)-minY;
+  const scale=Math.min(280/Math.max(dx,.000001),80/Math.max(dy,.000001));
+  return coords.map((p,i)=>`${150+(xs[i]-minX-dx/2)*scale},${50-(ys[i]-minY-dy/2)*scale}`).join(' ');
 }
 export class Journal {
   constructor() { this.key='open-skies.journal.v1';this.entries=[];try{this.refresh();}catch{} }
@@ -58,7 +73,7 @@ export class Journey {
     const choice=select.value;
     this.destination=choice==='local'?{name:'Local tour',lat:Math.min(89.9,start.lat+.09),lng:start.lng}:this.presets.find(p=>p.name===choice);
     this.start=start;
-    const r=this.destination?routeInfo(start,this.destination):null;
+    const r=this.destination?routeInfo(start,this.destination,this.app.vehicle.params.cruiseKmh):null;
     $('route-estimate').textContent=r?`${start.name} → ${this.destination.name} · ${r.km.toFixed(1)} km · about ${Math.max(1,Math.round(r.minutes))} min at cruise`:'Explore freely, or choose an optional destination.';
   }
   apply() {
@@ -88,12 +103,12 @@ export class Journey {
   finish(flight) {
     document.body.classList.remove('minimal-flight');$('btn-minimal').textContent='Hide HUD';$('btn-minimal').setAttribute('aria-pressed','false');$('journey-nav').hidden=true;$('discovery-note').textContent='';clearTimeout(this.noteTimer);
     if(!flight||flight.timeSec<1)return;
-    try {this.journal.save({kind:'flight',name:this.departure?.name||'Flight',start:this.departure,target:this.target,world:flight.world,timeSec:flight.timeSec,distanceKm:flight.distanceKm,topSpeedKmh:flight.topSpeedKmh,path:flight.path,discoveries:[...(this.discovered||[])]});}catch{this.notify('Logbook could not save. Browser storage may be full or unavailable.');}
+    try {this.journal.save({kind:'flight',name:this.departure?.name||'Flight',start:this.departure,target:this.target,world:flight.world,vehicle:flight.vehicle,timeSec:flight.timeSec,distanceKm:flight.distanceKm,topSpeedKmh:flight.topSpeedKmh,path:flight.path,discoveries:[...(this.discovered||[])]});}catch{this.notify('Logbook could not save. Browser storage may be full or unavailable.');}
   }
   toggleMinimal(){const on=document.body.classList.toggle('minimal-flight');$('btn-minimal').textContent=on?'Show HUD':'Hide HUD';$('btn-minimal').setAttribute('aria-pressed',String(on));}
   async photo(){
     if(!this.app.flying||this.capturing)return;this.capturing=true;$('btn-photo').disabled=true;
-    const context={name:this.departure?.name||'Flight',start:{...this.departure},target:this.target?{...this.target}:null,world:this.app.world,position:this.here?{...this.here}:null,path:this.app.flight.path.map(p=>p.slice())};
+    const context={name:this.departure?.name||'Flight',start:{...this.departure},target:this.target?{...this.target}:null,world:this.app.world,vehicle:this.app.vehicle.id,position:this.here?{...this.here}:null,path:this.app.flight.path.map(p=>p.slice())};
     try {
       const blob=await this.app.flight.capture();if(!blob)throw Error('No image');
       const bitmap=await createImageBitmap(blob),canvas=document.createElement('canvas');canvas.width=Math.min(960,bitmap.width);canvas.height=Math.round(bitmap.height*canvas.width/bitmap.width);canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
@@ -110,10 +125,11 @@ export class Journey {
       const card=document.createElement('article');card.className='journal-card';
       const title=document.createElement('h3');title.textContent=e.name||'Flight';card.append(title);
       const meta=document.createElement('p');meta.textContent=`${new Date(e.date).toLocaleString()} · ${e.world && e.world!=='google'?'Archived flight':'Real world'}${e.kind==='flight'?` · ${(e.distanceKm||0).toFixed(1)} km · ${Math.round((e.timeSec||0)/60)} min${e.landed?' · Landed':''}`:''}`;card.append(meta);
+      if(e.vehicle){const p=document.createElement("p");p.textContent=e.vehicle==="spaceship"?"Wayfarer · Spaceship":"Aerion · Airplane";card.append(p);}
       if(e.target){const p=document.createElement('p');p.textContent=`Route to ${e.target.name}`;card.append(p);}
       if(e.discoveries?.length){const p=document.createElement('p');p.textContent='Discovered: '+e.discoveries.join(', ');card.append(p);}
       if(e.image){const img=document.createElement('img');img.src=e.image;img.alt=`Flight over ${e.name}`;img.loading='lazy';card.append(img);const a=document.createElement('a');a.href=e.image;a.download='open-skies-journey.jpg';a.textContent='Download photo';card.append(a);}
-      if(e.path?.length>1){const map=document.createElementNS('http://www.w3.org/2000/svg','svg');map.setAttribute('viewBox','0 0 300 100');map.setAttribute('role','img');map.setAttribute('aria-label','Recorded flight track, schematic');const xs=e.path.map(p=>p[0]),ys=e.path.map(p=>p[1]),minX=Math.min(...xs),minY=Math.min(...ys),span=Math.max(Math.max(...xs)-minX,Math.max(...ys)-minY,.001);const line=document.createElementNS(map.namespaceURI,'polyline');line.setAttribute('points',e.path.map(p=>`${10+(p[0]-minX)/span*80},${90-(p[1]-minY)/span*80}`).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke','#c85d39');line.setAttribute('stroke-width','2');map.append(line);card.append(map);}
+      if(e.path?.length>1){const map=document.createElementNS('http://www.w3.org/2000/svg','svg');map.setAttribute('viewBox','0 0 300 100');map.setAttribute('role','img');map.setAttribute('aria-label','Recorded flight track, schematic');const line=document.createElementNS(map.namespaceURI,'polyline');line.setAttribute('points',trackPoints(e.path));line.setAttribute('fill','none');line.setAttribute('stroke','#c85d39');line.setAttribute('stroke-width','2');map.append(line);card.append(map);}
       const favorite=document.createElement('button');favorite.textContent=e.favorite?'★ Favorite':'☆ Favorite';favorite.setAttribute('aria-pressed',String(!!e.favorite));favorite.onclick=()=>{try{this.journal.favorite(e.id);this.render();}catch{this.notify('Could not save your favorite.');}};card.append(favorite);
       const exportButton=document.createElement('button');exportButton.textContent='Export journey';exportButton.onclick=()=>{const {image,...record}=e;const blob=new Blob([JSON.stringify(record,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='open-skies-journey.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};card.append(exportButton);
       if(e.start && (!e.world || e.world==='google')){const revisit=document.createElement('button');revisit.textContent='Plan this flight';revisit.onclick=()=>{$('journal-dialog').close();this.revisit(e);};card.append(revisit);}

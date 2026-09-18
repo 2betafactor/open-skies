@@ -63,7 +63,8 @@ assets/plane.glb           aircraft model (CC0)
 ```
 
 ## Flight planner and personal journeys
-The original airplane is the only aircraft. Select a real-world destination and
+Choose **Aerion**, a detailed twin-engine jet, or **Wayfarer**, a fictional
+spaceship for atmospheric exploration. Select a real-world destination and
 press **Take off**. Flights start airborne. There is no environment selector or
 practice airfield.
 
@@ -92,10 +93,24 @@ With Python Playwright/Chromium installed, run:
 - `python3 tests/journal_menu_smoke.py`: preferences, revisit, export, deletion,
   and storage-failure handling.
 - `python3 tests/browser_smoke.py`: retired replay and archived-journal handling.
-- `python3 tests/journey_smoke.py`: real-world launch contract, original GLB
+- `python3 tests/journey_smoke.py`: real-world launch contract, selected GLB
   rendering, weather, minimal view, photo capture and logbook persistence. The
   external tile provider is stubbed in this check; production imagery coverage
   and API permissions require a configured live account.
 
 Static files revalidate after deployment. The engine loads on demand and flight
 waits for the airplane model. Scores remain client reported, not cheat resistant.
+
+## Aircraft and review fixes
+Aerion has curved cockpit glazing, cabin windows, swept airfoil wings, winglets,
+recessed engine fans and smoother jet handling. Wayfarer has an armored hull,
+ion emitters, faster assisted steering and a distinct engine tone. It flies over
+Earth; no space environment or cockpit has been added. Both use the same controls;
+F/flaps and V/force-based simulation apply only to the airplane.
+
+Aircraft choice persists, and recorded flights and personal journeys retain it.
+Old airplane recordings use the upgraded jet. The original `plane.glb` remains
+in the repository. See `assets/README.md` for reproducible geometry and previews.
+Run `python3 tests/fleet_smoke.py` to validate both models, orientation, handling
+reset, saved selection and spaceship replay. See `docs/UI-AUDIT.md` for review
+findings, including replay cleanup/date-line fixes and low-score share retention.

@@ -17,9 +17,11 @@ with tempfile.TemporaryDirectory() as data:
   page.route('**/Cesium.js',lambda r:r.abort())
   page.goto(base,wait_until='networkidle')
   assert page.evaluate('!window.Cesium')
-  assert page.locator('.vehicle-btn, #vehicles, #inspect-dialog').count()==0
+  assert page.locator('.aircraft-option').count()==2
+  assert page.locator('[data-aircraft=plane]').get_attribute('aria-pressed')=='true'
+  page.click('[data-aircraft=spaceship]')
+  assert page.locator('#selected-aircraft').inner_text()=='Wayfarer'
   assert page.locator('[data-world], #sandbox-panel, #runway-start').count()==0
-  page.evaluate("localStorage.setItem('open-skies.aircraft','swift')")
   page.locator('.preset-card').filter(has_text='Tokyo Bay').click()
   assert page.locator('#selected-route').inner_text()=='Tokyo Bay'
   assert not page.locator('#screen-ride').is_visible()
@@ -31,11 +33,12 @@ with tempfile.TemporaryDirectory() as data:
   assert page.locator('#btn-takeoff').is_enabled()
   page.screenshot(path='/tmp/navigation-desktop.png')
   page.reload(wait_until='networkidle')
-  assert page.locator('.vehicle-btn').count()==0
+  assert page.locator('[data-aircraft=spaceship]').get_attribute('aria-pressed')=='true'
+  assert page.locator('.aircraft-option img').evaluate_all('images=>images.every(i=>i.complete&&i.naturalWidth>300)')
   page.set_viewport_size({'width':390,'height':844})
   assert page.evaluate('document.querySelector("#screen-landing").scrollWidth<=innerWidth')
   page.screenshot(path='/tmp/navigation-mobile.png')
-  print('Home works without the 3D engine; single aircraft and explicit destination selection passed.',flush=True)
+  print('Home works without the 3D engine; two aircraft and explicit destination selection passed.',flush=True)
   assert 'Sandbox' not in page.locator('body').inner_text()
   assert not errors,errors
   b.close()

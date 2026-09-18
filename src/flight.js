@@ -1,4 +1,4 @@
-import { VEHICLES } from "./vehicles.js?v=world6";
+import { VEHICLES } from "./vehicles.js?v=fleet7";
 // flight.js — arcade flight engine over Google Photorealistic 3D Tiles (Cesium).
 // Implements the "feel guide" reference model: rotational inertia, energy
 // exchange, velocity-lag, input shaping, spring auto-level, fixed 120 Hz step.
@@ -377,7 +377,8 @@ export class Flight {
     const t = fi - i;
     const a = path[i];
     const b = path[i + 1];
-    const lng = a[0] + (b[0] - a[0]) * t;
+    const deltaLng = ((b[0] - a[0] + 540) % 360) - 180;
+    const lng = ((a[0] + deltaLng * t + 540) % 360) - 180;
     const lat = a[1] + (b[1] - a[1]) * t;
     const alt = a[2] + (b[2] - a[2]) * t;
     this.position = C.Cartesian3.fromDegrees(lng, lat, alt);
@@ -553,7 +554,8 @@ export class Flight {
     this.P.modelRollDeg = v.roll || 0;
     if (v.params) Object.assign(this.P, v.params);
     // Bird flies the force-based model (glide + flap); everything else arcade.
-    this.mode = this.vehicleType === "bird" ? "sim" : "arcade";
+    this.mode = "arcade";
+    this.flaps = 0;
     log("vehicle → " + this.vehicleType);
   }
 
@@ -562,11 +564,13 @@ export class Flight {
   }
 
   cycleFlaps() {
+    if (this.vehicleType === "spaceship") return;
     this.flaps = this.flaps === 0 ? 20 : this.flaps === 20 ? 40 : 0;
     log("flaps " + this.flaps);
   }
 
   toggleMode() {
+    if (this.vehicleType === "spaceship") return;
     if (this.mode === "arcade") {
       // Entering sim: seed the velocity vector from the current heading + speed.
       const b = this._basisFor(this.heading, this.pitch, this.roll);
@@ -666,7 +670,7 @@ export class Flight {
 
     const shp = (x) => Math.sign(x) * x * x; // input curve
     const inP = shp(clamp(c.pitch, -1, 1));
-    const inR = shp(clamp(c.roll, -1, 1));
+    const inR = c.level ? 0 : shp(clamp(c.roll, -1, 1));
     const inRud = clamp(c.rudder, -1, 1);
 
     const minMs = P.minSpeedKmh / 3.6;
@@ -675,7 +679,7 @@ export class Flight {
 
     // Throttle → target speed (eased, engine lag).
     this.throttle = clamp(this.throttle + c.throttle * 0.5 * h, 0, 1);
-    const targetSpeed = minMs + (maxMs - minMs) * this.throttle;
+    const targetSpeed = (minMs + (maxMs - minMs) * this.throttle) * (1 - .15 * this.flaps / 40);
     this.speed += (targetSpeed - this.speed) * (1 - Math.exp(-h / P.throttleLag));
 
     // Rotational inertia: input drives angular velocity; spring auto-level idle.
@@ -684,7 +688,7 @@ export class Flight {
     if (Math.abs(inR) > 0.01) {
       this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
     } else {
-      const w = P.autoFreq;
+      const w = c.level ? Math.max(3.5, P.autoFreq) : P.autoFreq;
       this._rollVel += (-this.roll * w * w - 2 * P.autoDamp * w * this._rollVel) * h;
     }
     this.roll = clamp(this.roll + this._rollVel * h, -P.rollClampDeg * D2R, P.rollClampDeg * D2R);
@@ -731,7 +735,7 @@ export class Flight {
     if (!Number.isFinite(this.throttle)) this.throttle = 0.5;
     if (!Number.isFinite(this.speed)) this.speed = this.P.cruiseKmh / 3.6;
 
-    if (this.airMotion) {
+    if (this.airMotion && this.vehicleType !== "spaceship") {
       const strength = this.weather === "rain" ? .055 : .025;
       this._rollVel += Math.sin((this._elapsed || 0) * 1.7) * strength * h;
       this._pitchVel += Math.sin((this._elapsed || 0) * 1.1 + 1) * strength * .5 * h;
@@ -859,7 +863,7 @@ export class Flight {
     const auth = clamp(q / qRef, 0.12, 1.4);
     const shp = (x) => Math.sign(x) * x * x;
     const inP = shp(clamp(c.pitch, -1, 1));
-    const inR = shp(clamp(c.roll, -1, 1));
+    const inR = c.level ? 0 : shp(clamp(c.roll, -1, 1));
     const inRud = clamp(c.rudder, -1, 1);
 
     this.pitch += inP * P.maxPitchRateDeg * D2R * auth * h;
@@ -880,7 +884,7 @@ export class Flight {
         this.pitch += (trim - this.pitch) * Math.min(1, P.pitchStab * auth * h);
       }
     }
-    if (Math.abs(inR) < 0.01) this.roll += (0 - this.roll) * Math.min(1, P.rollDamp * h);
+    if (Math.abs(inR) < 0.01) this.roll += (0 - this.roll) * Math.min(1, (c.level ? Math.max(3.5, P.rollDamp) : P.rollDamp) * h);
 
     // Stall buffet — a gentle, time-based shudder (not per-step random noise) so
     // it reads as buffet, not a seizure. Plus a slow wing-drop bias.
@@ -1109,6 +1113,7 @@ export class Flight {
       warning: this.warning,
       crashes: this.crashes,
       mode: this.mode,
+      vehicleType: this.vehicleType,
       flaps: this.flaps,
       aoaDeg: this._aoa / D2R,
       vspeed: this._vspeed,

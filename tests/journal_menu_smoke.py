@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory() as data:
   page.goto(f'http://localhost:{http.server_port}',wait_until='networkidle')
   page.locator('.flight-options summary').click()
   page.select_option('#weather','haze');page.uncheck('#air-motion')
-  page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=world6');const j=new Journal();j.save({kind:'flight',name:'Manhattan',world:'google',start:{name:'Manhattan',lat:40.758,lng:-73.9855},target:{name:'Local tour',lat:.025,lng:.012},timeSec:30,distanceKm:1,path:[[0,0,7,0],[0,.001,50,0]]});}''')
+  page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=fleet7');const j=new Journal();j.save({kind:'flight',name:'Manhattan',world:'google',start:{name:'Manhattan',lat:40.758,lng:-73.9855},target:{name:'Local tour',lat:.025,lng:.012},timeSec:30,distanceKm:1,path:[[0,0,7,0],[0,.001,50,0]]});}''')
   page.reload(wait_until='networkidle')
   assert page.locator('#weather').input_value()=='haze'
   assert not page.locator('#air-motion').is_checked()
@@ -28,8 +28,9 @@ with tempfile.TemporaryDirectory() as data:
   assert page.locator('#route-end').input_value()=='local'
   page.click('#btn-journal');page.get_by_role('button',name='Delete entry',exact=True).click()
   assert page.locator('.journal-card').count()==0
-  result=page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=world6');const j=new Journal(),old=Storage.prototype.setItem;let rejected=false;Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError')};try{j.save({kind:'flight',name:'Must not save'})}catch{rejected=true}finally{Storage.prototype.setItem=old}return rejected&&j.entries.length===0&&new Journal().entries.length===0;}''')
+  result=page.evaluate('''async()=>{const {Journal}=await import('/src/journey.js?v=fleet7');const j=new Journal(),old=Storage.prototype.setItem;let rejected=false;Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError')};try{j.save({kind:'flight',name:'Must not save'})}catch{rejected=true}finally{Storage.prototype.setItem=old}return rejected&&j.entries.length===0&&new Journal().entries.length===0;}''')
   assert result
+  assert page.evaluate('''async()=>{const {trackPoints}=await import('/src/journey.js?v=fleet7');const a=trackPoints([[179.9,0],[-179.9,.01]]).split(/[ ,]/).map(Number),b=trackPoints([[-.1,0],[.1,.01]]).split(/[ ,]/).map(Number);return a.every((x,i)=>Math.abs(x-b[i])<.00001);}''')
   assert not errors,errors
   print('Preferences, route revisit, JSON export, entry deletion and storage-failure handling passed.')
   browser.close()

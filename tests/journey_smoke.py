@@ -18,14 +18,14 @@ with tempfile.TemporaryDirectory() as data:
   page.locator('.flight-options summary').click()
   page.select_option('#route-end','local')
   assert '10.0 km' in page.locator('#route-estimate').inner_text()
-  checks=page.evaluate('''async()=>{const {routeInfo,Journal}=await import('/src/journey.js?v=world6');const r=routeInfo({lat:0,lng:0},{lat:0,lng:1});const j=new Journal();j.save({kind:'flight',name:'Persistence check',distanceKm:1});const next=new Journal();return {distance:Math.abs(r.km-111.195)<.01,bearing:r.bearing===90,persist:next.entries[0].name==='Persistence check'};}''')
+  checks=page.evaluate('''async()=>{const {routeInfo,Journal}=await import('/src/journey.js?v=fleet7');const r=routeInfo({lat:0,lng:0},{lat:0,lng:1});const j=new Journal();j.save({kind:'flight',name:'Persistence check',distanceKm:1});const next=new Journal();return {distance:Math.abs(r.km-111.195)<.01,bearing:r.bearing===90,persist:next.entries[0].name==='Persistence check'};}''')
   assert all(checks.values()),checks
   page.select_option('#time-of-day','sunset');page.select_option('#weather','rain')
   page.screenshot(path='/tmp/journey-home.png')
-  page.evaluate('''async()=>{const {Flight}=await import('/src/flight.js?v=world6');const start=Flight.prototype.start;Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}''')
+  page.evaluate('''async()=>{const {Flight}=await import('/src/flight.js?v=fleet7');const start=Flight.prototype.start;Flight.prototype.start=function(){window.testFlight=this;return start.call(this)};}''')
   page.locator('.quality-btn').filter(has_text='Performance').click()
   print('Loading 3D engine for real-world launch check',flush=True)
-  page.evaluate('''async()=>{const {ensureEngine}=await import('/src/engine.js?v=world6');await ensureEngine();window.HORSEBACK_CONFIG={GOOGLE_MAPS_API_KEY:'test-only'};}''')
+  page.evaluate('''async()=>{const {ensureEngine}=await import('/src/engine.js?v=fleet7');await ensureEngine();window.HORSEBACK_CONFIG={GOOGLE_MAPS_API_KEY:'test-only'};}''')
   print('Launching with external tiles stubbed',flush=True)
   page.click('#btn-takeoff');page.wait_for_function('window.testFlight?._running',timeout=60000)
   assert page.evaluate('testFlight.phase')=='airborne'
@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory() as data:
   assert page.evaluate("testFlight.world==='google' && testFlight.vehicleId==='plane'")
   assert page.evaluate("testFlight.viewer.dataSourceDisplay.getBoundingSphere(testFlight.plane,false,new Cesium.BoundingSphere())===Cesium.BoundingSphereState.DONE")
   page.evaluate('testFlight._elapsed=120;testFlight.distance=2')
-  print('Real-world launch and original model rendering passed with the external tiles provider stubbed.',flush=True)
+  print('Real-world launch and upgraded airplane rendering passed with the external tiles provider stubbed.',flush=True)
   assert not page.evaluate('testFlight._warned'), 'Flight loop error'
   page.click('#btn-minimal');assert page.locator('body').evaluate("e=>e.classList.contains('minimal-flight')")
   assert page.locator('#journey-nav').is_visible()

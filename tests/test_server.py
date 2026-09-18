@@ -47,6 +47,19 @@ class ScoresTest(unittest.TestCase):
         self.assertEqual(flight['path'], path)
         self.assertNotIn('path', result['board'][0])
 
+    def test_spaceship_and_low_score_share_link(self):
+        previous = server.load()
+        try:
+            server.save([{'id': str(i), 'distanceKm': 100, 'name': 'PILOT'} for i in range(300)])
+            status, result = self.request('/api/scores', {'vehicle': 'spaceship', 'distanceKm': .1, 'path': [[0,0,350,0],[0,.001,350,0]]})
+            self.assertEqual(status, 201)
+            status, flight = self.request('/api/flight?id=' + result['id'])
+            self.assertEqual(status, 200)
+            self.assertEqual(flight['vehicle'], 'spaceship')
+            self.assertEqual(len(server.load()), 300)
+        finally:
+            server.save(previous)
+
     def test_static_assets_revalidate_after_deploy(self):
         for path in ('/', '/src/main.js', '/src/home.css', '/assets/plane.glb'):
             with urllib.request.urlopen(self.url + path) as response:

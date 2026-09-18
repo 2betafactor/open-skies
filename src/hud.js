@@ -36,7 +36,7 @@ export class HUD {
   update(s) {
     this.el.airspeed.textContent = Math.round(s.speedKmh) + " km/h";
     this.el.altitude.textContent = Math.round(s.altM).toLocaleString() + " m";
-    const hd = Math.round(s.headingDeg);
+    const hd = Math.round(s.headingDeg) % 360;
     this.el.heading.textContent = hd + "°";
     this.el.compass.textContent = COMPASS[Math.round(hd / 45) % 8];
     this.el.throttle.style.width = Math.round(s.throttle * 100) + "%";
@@ -54,6 +54,7 @@ export class HUD {
 
     if (this.el.vspeed) {
       const parts = [];
+      if (s.vehicleType === "spaceship") parts.push("ION DRIVE · ASSISTED");
       if (s.homeKm != null) parts.push("📍 " + s.homeKm.toFixed(1) + " km");
       const v = Math.round(s.vspeed || 0);
       parts.push("V/S " + (v >= 0 ? "+" : "") + v + " m/s");

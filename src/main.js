@@ -1,14 +1,14 @@
-import { Journey } from "./journey.js?v=world6";
-import { ensureEngine } from "./engine.js?v=world6";
-import { VEHICLES } from "./vehicles.js?v=world6";
+import { Journey } from "./journey.js?v=fleet7";
+import { ensureEngine } from "./engine.js?v=fleet7";
+import { VEHICLES } from "./vehicles.js?v=fleet7";
 // main.js — app state machine (landing → loading → flying), Google Maps loader
 // (Places), Cesium flight scene, presets.
 
-import { Flight, DEFAULT_PARAMS } from "./flight.js?v=world6";
-import { Controller } from "./controller.js?v=world6";
-import { EngineAudio } from "./audio.js?v=world6";
-import { HUD } from "./hud.js?v=world6";
-import { buildTuner } from "./tuner.js?v=world6";
+import { Flight, DEFAULT_PARAMS } from "./flight.js?v=fleet7";
+import { Controller } from "./controller.js?v=fleet7";
+import { EngineAudio } from "./audio.js?v=fleet7";
+import { HUD } from "./hud.js?v=fleet7";
+import { buildTuner } from "./tuner.js?v=fleet7";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -89,6 +89,8 @@ async function prepareSearch() {
 function initApp() {
   dlog("initializing real-world flight");
   app.world = "google";
+  try { app.vehicle = VEHICLES.find(v => v.id === localStorage.getItem("open-skies.aircraft")) || VEHICLES[0]; } catch {}
+  renderAircraft();
   document.getElementById("place-input").addEventListener("input", e => {
     const pending = !!e.target.value.trim();
     document.getElementById("btn-takeoff").disabled = pending;
@@ -118,6 +120,7 @@ function initApp() {
   app.flight = new Flight("cesiumContainer");
   journey = new Journey(app, PRESETS, toast, entry => {
     if (entry.world && entry.world !== "google") return;
+    chooseAircraft(entry.vehicle || "plane");
     if(entry.start) selectDestination(entry.start);
     document.getElementById("route-end").value = entry.target?.name === "Local tour" ? "local" : entry.target?.name || "";
     journey.plan();
@@ -158,6 +161,27 @@ function initApp() {
 }
 
 // ================= Landing =================
+function chooseAircraft(id) {
+  app.vehicle = VEHICLES.find(v => v.id === id) || VEHICLES[0];
+  try { localStorage.setItem("open-skies.aircraft", app.vehicle.id); } catch {}
+  renderAircraft();
+  journey?.plan();
+}
+function renderAircraft() {
+  const wrap = document.getElementById("aircraft-options");wrap.replaceChildren();
+  for(const v of VEHICLES) {
+    const button = document.createElement("button");button.type = "button";
+    button.className = "aircraft-option";button.dataset.aircraft = v.id;
+    button.setAttribute("aria-label", `${v.name}, ${v.description}`);
+    button.setAttribute("aria-pressed", String(v.id === app.vehicle.id));
+    const img = document.createElement("img");img.src = v.preview;img.alt = "";
+    const label = document.createElement("span");label.textContent = v.name;
+    button.append(img,label);button.addEventListener("click",()=>chooseAircraft(v.id));wrap.append(button);
+  }
+  document.getElementById("selected-aircraft").textContent = app.vehicle.name;
+  document.getElementById("aircraft-note").textContent = app.vehicle.description + (app.vehicle.type === "spaceship" ? " · Faster, assisted flight over Earth" : " · Smooth banking and gradual thrust");
+}
+
 function renderQuality() {
   const wrap = document.getElementById("quality");
   if (!wrap) return;
@@ -489,6 +513,7 @@ async function takeOff(lat, lng, label) {
   if (app.flight) app.flight.locationLabel = label; // used to caption shared screenshots
   // Unlock/resume audio NOW, inside the click gesture — before the tile-load
   // await — or Safari leaves the context suspended and there's no engine sound.
+  app.audio.setAircraft(app.vehicle.type);
   app.audio.start();
 
   showScreen("ride");
@@ -510,6 +535,7 @@ async function takeOff(lat, lng, label) {
     if (app.cancelled) return;
 
     showLoading(false);
+    document.getElementById("btn-camera").textContent = app.flight.cameraView === "profile" ? "Profile" : "Chase";
     beginFlight();
   } catch (err) {
     console.error(err);
@@ -818,6 +844,7 @@ async function watchFlight(id) {
   } catch (e) {
     console.error(e);
     showLoading(false);
+    app.flight.dispose();
     goLanding();
     setLandingStatus("Couldn’t load that flight. Please retry or start a new flight.", true);
   } finally {

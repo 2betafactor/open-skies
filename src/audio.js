@@ -128,9 +128,11 @@ export class EngineAudio {
     this.bass.frequency.setTargetAtTime(BASS[i % BASS.length], now, 1.6);
   }
 
+  setAircraft(type) { this.aircraftType = type; }
+
   setThrottle(value) {
     if (!this._started) return;
-    this.engine.frequency.setTargetAtTime(40 + value * 100, this.ctx.currentTime, .5);
+    this.engine.frequency.setTargetAtTime((this.aircraftType === "spaceship" ? 80 + value * 160 : 40 + value * 100), this.ctx.currentTime, .5);
     this.engineGain.gain.setTargetAtTime(.018 + value * .06, this.ctx.currentTime, .5);
   }
   say(text) {
