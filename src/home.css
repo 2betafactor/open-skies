@@ -1,7 +1,7 @@
 /* Destination planner. Scope rules so the flight HUD keeps its own layout. */
 #screen-landing {
   background: #f3f4f0; color: #233940;
-  --text: #233940; --muted: #63777c; --accent: #cb5c36;
+  --text: #233940; --muted: #63777c; --accent: #3b765d;
   --panel: #fff; --danger: #ab352d;
 }
 #screen-landing .landing-inner { width: min(760px, 100%); padding: 25px 38px 20px; margin: auto; text-align: left; }
@@ -29,8 +29,8 @@
 #screen-landing .preset-name { font-size: .85rem; font-weight: 550; align-self: center; white-space: nowrap; }
 #screen-landing .preset-desc { display: none; }
 .launch-summary { display: flex; justify-content: space-between; gap: 8px; font-size: .82rem; color: #6e8384; margin: 20px 0 9px; }
-#screen-landing .primary { width: 100%; padding: 14px; border: none; border-radius: 10px; color: #fff; background: #c85d39; font-weight: 650; font-size: .86rem; box-shadow: 0 4px 12px #af462320; }
-#screen-landing .primary:hover { background: #b7502e; }
+#screen-landing .primary { width: 100%; padding: 14px; border: none; border-radius: 10px; color: #fff; background: #3b765d; font-weight: 650; font-size: .86rem; box-shadow: 0 4px 12px #315f4b30; }
+#screen-landing .primary:hover { background: #2f624c; }
 #screen-landing .quality-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 18px 0 0; }
 #screen-landing .quality-cap { text-align: center; flex-basis: 100%; margin: 0 0 4px; font-size: .7rem; letter-spacing: .1em; color: #97a59e; }
 #screen-landing .quality-btn { padding: 6px 8px; font-size: .75rem; border: 1px solid transparent; background: transparent; color: #7b8d83; border-radius: 6px; }
@@ -65,12 +65,11 @@
 }
 #screen-landing .preset-card:hover { transform: none; box-shadow: none; background: #edf4f1; border-color: #91aaa8; }
 #screen-landing .quality-btn { box-shadow: none; }
-.radio-controls select { width:100%; margin-top:7px; padding:10px; border:1px solid #bdcbc7; border-radius:8px; background:#fafbf8; color:#233940; font-size:16px; }
-.radio-panel { margin-top:14px; padding:13px; border:1px solid #dbe4df; border-radius:12px; background:#f7faf7; }
+.radio-panel { margin-top:14px; padding:11px 13px; border:1px solid #cfe0d5; border-radius:12px; background:#eef6f0; }
 .radio-heading { display:flex; justify-content:space-between; gap:8px; font-size:.82rem; color:#2f5447; }
 #radio-location { color:#8a9a91; font-size:.7rem; font-weight:500; }
 #radio-status { margin:6px 0 10px; color:#667d74; font-size:.75rem; line-height:1.4; }
-.radio-controls { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:6px; align-items:center; }
+.radio-controls { display:flex; gap:6px; align-items:center; }
 .radio-controls .small { white-space:nowrap; padding:9px 10px; }
 #journal-dialog { width: min(780px,94vw); max-height: 90dvh; background: #f3f4f0; color: #233940; border: 1px solid #bdcbc7; border-radius: 18px; padding: 24px; }
 #journal-dialog::backdrop { background: #102329b8; }
