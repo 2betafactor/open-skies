@@ -152,4 +152,23 @@ def cyber():
  m.foil(panel,[(-2.1,.9,.35,0,.07),(-3.8,.3,1.25,0,.05),(-4.6,.12,1.45,0,.04)],vertical=True)
  m.ellipsoid(pink,(-4.85,.06,0),(.12,.07,.07),10,5)
  m.save(ROOT/'assets/cyberwing.glb')
-if __name__=='__main__':jet();ship();cyber()
+
+def cyber_from_aerion():
+ # Use the proven, readable jet silhouette and give it a restrained cyberpunk
+ # material pass. This avoids the toy-like delta geometry of the first draft.
+ src=ROOT/'assets/aerion.glb'; raw=src.read_bytes(); magic,version,total=struct.unpack_from('<III',raw,0)
+ size,kind=struct.unpack_from('<II',raw,12); doc=json.loads(raw[20:20+size]); binary=raw[28+size:]
+ palette={
+  'Pearl fuselage':([.018,.025,.05],None), 'Midnight blue livery':([.07,.025,.16],None),
+  'Cockpit and cabin glass':([.008,.045,.085],[.01,.16,.38]), 'Brushed titanium':([.16,.19,.27],None),
+  'Intake interiors':([.006,.008,.018],None), 'Port navigation light':([.8,.015,.28],[1,.01,.35]),
+  'Starboard navigation light':([.01,.45,.8],[.01,.9,1])}
+ for mat in doc.get('materials',[]):
+  name=mat.get('name',''); colors=palette.get(name)
+  if not colors: continue
+  pbr=mat.setdefault('pbrMetallicRoughness',{});pbr['baseColorFactor']=colors[0]+[1]
+  if colors[1]:mat['emissiveFactor']=colors[1]
+ doc['asset']['generator']='Open Skies cyberpunk material pass'
+ out=json.dumps(doc,separators=(',',':')).encode();out+=b' '*((-len(out))%4);binary=binary[0:]
+ ROOT.joinpath('assets/cyberwing.glb').write_bytes(struct.pack('<III',0x46546c67,2,28+len(out)+len(binary))+struct.pack('<II',len(out),0x4e4f534a)+out+struct.pack('<II',len(binary),0x004e4942)+binary)
+if __name__=='__main__':jet();ship();cyber();cyber_from_aerion()
