@@ -84,14 +84,14 @@
 #aircraft-options { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 #screen-landing .aircraft-option { display:flex; flex-direction:column; align-items:center; padding:8px 10px 12px; border:1px solid #dce3dc; border-radius:12px; background:#f1f5f4; color:#233940; box-shadow:none; }
 #screen-landing .aircraft-option[aria-pressed=true] { border:2px solid #51746d; padding:7px 9px 11px; background:#e5efeb; }
-.aircraft-option img { height:76px; width:100%; object-fit:contain; }
+.aircraft-option img { height:60px; width:86%; object-fit:contain; }
 .aircraft-option span { display:none; }
 @media(max-width:600px) {
   #screen-landing .landing-inner { padding:12px 12px 14px; }
   .home-header { margin-bottom:12px; }
   .route-panel { padding:16px 14px; border-radius:16px; }
   .route-intro { margin-bottom:12px; }
-  .aircraft-option img { height:58px; }
+  .aircraft-option img { height:46px; width:84%; }
   .aircraft-picker { margin-bottom:12px; }
   #screen-landing .preset-card { min-height:42px; padding:8px 7px; }
   .launch-summary { margin-top:14px; }
