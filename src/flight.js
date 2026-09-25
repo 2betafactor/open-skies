@@ -124,6 +124,8 @@ export class Flight {
     this._flipUntil = 0;
     this._flipPitch = 0;
     this._flipRoll = 0;
+    this._stuntAngle = 0;
+    this._stuntAxis = "";
 
     this._rollVel = 0;
     this._pitchVel = 0;
@@ -630,6 +632,8 @@ export class Flight {
     this._flipUntil = performance.now() + (kind === "barrel" ? 2600 : 3000);
     this._flipPitch = kind === "backflip" ? 1 : 0;
     this._flipRoll = kind === "barrel" ? 1 : 0;
+    this._stuntAngle = 0;
+    this._stuntAxis = kind === "barrel" ? "roll" : "pitch";
   }
 
   // ---- fixed-step loop ----
@@ -719,17 +723,15 @@ export class Flight {
     const shp = (x) => Math.sign(x) * x * x; // input curve
     const flipping = performance.now() < this._flipUntil;
     if (!flipping && (this._flipPitch || this._flipRoll)) {
-      // Exit the maneuver in a stable reference attitude. Leaving a +2π angle
-      // for the normal steering springs made the next input feel reversed.
-      if (this._flipPitch) this.pitch = 0;
-      if (this._flipRoll) this.roll = 0;
-      this._pitchVel = 0;
-      this._rollVel = 0;
+      // Stunts are visual-only rotations; the navigation attitude stays level.
+      this._stuntAngle = 0;
+      this._stuntAxis = "";
       this._flipPitch = 0;
       this._flipRoll = 0;
     }
-    const inP = this._flipPitch || shp(clamp(c.pitch, -1, 1));
-    const inR = this._flipRoll || (c.level ? 0 : shp(clamp(c.roll, -1, 1)));
+    if (flipping) this._stuntAngle += (2 * Math.PI / (this._flipRoll ? 2.6 : 2.8)) * h;
+    const inP = flipping ? 0 : shp(clamp(c.pitch, -1, 1));
+    const inR = flipping ? 0 : (c.level ? 0 : shp(clamp(c.roll, -1, 1)));
     const inRud = clamp(c.rudder, -1, 1);
 
     const minMs = P.minSpeedKmh / 3.6;
@@ -744,13 +746,7 @@ export class Flight {
     // Normal input uses inertia and auto-level. A triggered aerobatic move uses
     // a deterministic full rotation, so R/T always complete instead of
     // stalling halfway through when speed or frame rate changes.
-    if (flipping) {
-      const rate = (2 * Math.PI / (this._flipRoll ? 2.6 : 2.8));
-      if (this._flipRoll) this.roll += rate * h;
-      else this.pitch += rate * h;
-      this._rollVel = 0;
-      this._pitchVel = 0;
-    } else {
+    if (!flipping) {
       const maxRoll = P.maxRollRateDeg * D2R * auth;
       const maxPitch = P.maxPitchRateDeg * D2R * auth;
       if (Math.abs(inR) > 0.01) this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
@@ -763,7 +759,7 @@ export class Flight {
 
     // Banked-turn coupling + rudder.
     const neutral = Math.abs(inR) < 0.01 && Math.abs(inRud) < 0.01 && Math.abs(this.roll) < 0.004 && Math.abs(this._rollVel) < 0.01;
-    const yawRate = flipping ? 0 : (neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R);
+    const yawRate = neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R;
     this.heading = wrap2pi(this.heading + yawRate * h);
 
     // Energy exchange + turn bleed.
@@ -1061,8 +1057,10 @@ export class Flight {
     const P = this.P;
     const ambP = P.ambientDeg * D2R * Math.sin(this._t * 0.7);
     const ambR = P.ambientDeg * D2R * Math.sin(this._t * 0.53);
-    const dynPitch = this.vehicleType === "balloon" ? 0 : this.pitch + ambP;
-    const dynRoll = this.vehicleType === "balloon" ? 0 : this.roll + ambR;
+    const stuntPitch = this._stuntAxis === "pitch" ? this._stuntAngle : 0;
+    const stuntRoll = this._stuntAxis === "roll" ? this._stuntAngle : 0;
+    const dynPitch = this.vehicleType === "balloon" ? 0 : this.pitch + ambP + stuntPitch;
+    const dynRoll = this.vehicleType === "balloon" ? 0 : this.roll + ambR + stuntRoll;
     const hpr = new C.HeadingPitchRoll(
       this.heading + P.modelYawDeg * D2R,
       dynPitch + P.modelPitchDeg * D2R,
