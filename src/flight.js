@@ -315,7 +315,6 @@ export class Flight {
           return C.Cartesian3.fromDegrees(lng + dLng + Math.sin(t / period) * span, lat + dLat, this.spawnGround + alt);
         }, false),
         ellipsoid: { radii: kind === "zeppelin" ? new C.Cartesian3(42, 12, 12) : new C.Cartesian3(16, 3.5, 3.5), material: C.Color.fromCssColorString(color).withAlpha(.88) },
-        billboard: { image: ad(text, color, kind === "zeppelin" ? "#72f6ff" : "#ffd166"), width: kind === "zeppelin" ? 260 : 120, height: kind === "zeppelin" ? 78 : 36, pixelOffset: new C.Cartesian2(0, -26), disableDepthTestDistance: 7000 },
       });
       this._traffic.push({ entity, kind });
     };
