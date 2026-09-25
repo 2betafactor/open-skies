@@ -143,6 +143,7 @@ function initApp() {
     onDismount: dismount,
     onFlaps: () => app.flight.cycleFlaps(),
     onToggleMode: () => app.flight.toggleMode(),
+    onFlip: (kind) => app.flight.startFlip(kind),
     onCamera: changeCamera,
   });
 

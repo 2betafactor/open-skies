@@ -121,6 +121,9 @@ export class Flight {
     this._marker = null; // "you are here" beacon
     this._targetLL = null;
     this._traffic = [];
+    this._flipUntil = 0;
+    this._flipPitch = 0;
+    this._flipRoll = 0;
 
     this._rollVel = 0;
     this._pitchVel = 0;
@@ -304,6 +307,7 @@ export class Flight {
     const C = window.Cesium;
     if (!this.viewer || !this.spawnLL) return;
     const { lat, lng } = this.spawnLL;
+    const ad = (brand, color, accent) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='360' viewBox='0 0 1200 360'><defs><linearGradient id='g' x1='0' x2='1'><stop stop-color='${color}'/><stop offset='1' stop-color='#090d1b'/></linearGradient></defs><rect width='1200' height='360' rx='28' fill='url(#g)'/><path d='M0 300L320 0h150L150 360zM430 360L750 0h70L500 360z' fill='${accent}' opacity='.7'/><rect x='30' y='30' width='1140' height='300' rx='18' fill='none' stroke='${accent}' stroke-width='6'/><text x='600' y='185' text-anchor='middle' fill='white' font-family='Arial,sans-serif' font-size='92' font-weight='900' letter-spacing='5'>${brand}</text><text x='600' y='260' text-anchor='middle' fill='${accent}' font-family='Arial,sans-serif' font-size='30' font-weight='700' letter-spacing='7'>FLY THE FUTURE</text></svg>`);
     const add = (kind, dLng, dLat, alt, color, text, span, period) => {
       const entity = this.viewer.entities.add({
         position: new C.CallbackProperty(() => {
@@ -311,7 +315,7 @@ export class Flight {
           return C.Cartesian3.fromDegrees(lng + dLng + Math.sin(t / period) * span, lat + dLat, this.spawnGround + alt);
         }, false),
         ellipsoid: { radii: kind === "zeppelin" ? new C.Cartesian3(42, 12, 12) : new C.Cartesian3(16, 3.5, 3.5), material: C.Color.fromCssColorString(color).withAlpha(.88) },
-        label: { text, font: kind === "zeppelin" ? "bold 17px sans-serif" : "bold 12px sans-serif", fillColor: C.Color.WHITE, outlineColor: C.Color.BLACK, outlineWidth: 4, style: C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -16), disableDepthTestDistance: 7000 },
+        billboard: { image: ad(text, color, kind === "zeppelin" ? "#72f6ff" : "#ffd166"), width: kind === "zeppelin" ? 190 : 120, height: kind === "zeppelin" ? 57 : 36, pixelOffset: new C.Cartesian2(0, -22), disableDepthTestDistance: 7000 },
       });
       this._traffic.push({ entity, kind });
     };
@@ -622,6 +626,13 @@ export class Flight {
     log("mode → " + this.mode);
   }
 
+  startFlip(kind = "backflip") {
+    if (this.vehicleType === "balloon") return;
+    this._flipUntil = performance.now() + (kind === "barrel" ? 2600 : 3000);
+    this._flipPitch = kind === "backflip" ? 1 : 0;
+    this._flipRoll = kind === "barrel" ? 1 : 0;
+  }
+
   // ---- fixed-step loop ----
   _installLoop() {
     this._preUpdate = () => {
@@ -707,8 +718,10 @@ export class Flight {
     this._t += h;
 
     const shp = (x) => Math.sign(x) * x * x; // input curve
-    const inP = shp(clamp(c.pitch, -1, 1));
-    const inR = c.level ? 0 : shp(clamp(c.roll, -1, 1));
+    const flipping = performance.now() < this._flipUntil;
+    if (!flipping) { this._flipPitch = 0; this._flipRoll = 0; }
+    const inP = this._flipPitch || shp(clamp(c.pitch, -1, 1));
+    const inR = this._flipRoll || (c.level ? 0 : shp(clamp(c.roll, -1, 1)));
     const inRud = clamp(c.rudder, -1, 1);
 
     const minMs = P.minSpeedKmh / 3.6;
