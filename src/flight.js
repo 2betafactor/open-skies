@@ -718,7 +718,16 @@ export class Flight {
 
     const shp = (x) => Math.sign(x) * x * x; // input curve
     const flipping = performance.now() < this._flipUntil;
-    if (!flipping) { this._flipPitch = 0; this._flipRoll = 0; }
+    if (!flipping && (this._flipPitch || this._flipRoll)) {
+      // Exit the maneuver in a stable reference attitude. Leaving a +2π angle
+      // for the normal steering springs made the next input feel reversed.
+      if (this._flipPitch) this.pitch = 0;
+      if (this._flipRoll) this.roll = 0;
+      this._pitchVel = 0;
+      this._rollVel = 0;
+      this._flipPitch = 0;
+      this._flipRoll = 0;
+    }
     const inP = this._flipPitch || shp(clamp(c.pitch, -1, 1));
     const inR = this._flipRoll || (c.level ? 0 : shp(clamp(c.roll, -1, 1)));
     const inRud = clamp(c.rudder, -1, 1);
@@ -754,7 +763,7 @@ export class Flight {
 
     // Banked-turn coupling + rudder.
     const neutral = Math.abs(inR) < 0.01 && Math.abs(inRud) < 0.01 && Math.abs(this.roll) < 0.004 && Math.abs(this._rollVel) < 0.01;
-    const yawRate = neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R;
+    const yawRate = flipping ? 0 : (neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R);
     this.heading = wrap2pi(this.heading + yawRate * h);
 
     // Energy exchange + turn bleed.
