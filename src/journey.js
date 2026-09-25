@@ -32,16 +32,6 @@ export class Journal {
   }
   favorite(id) { this.refresh();const next=this.entries.map(e=>e.id===id?{...e,favorite:!e.favorite}:e);localStorage.setItem(this.key,JSON.stringify(next));this.entries=next; }
 }
-const PLACE_NOTES = {
-  'Manhattan': 'Follow the river edges for an open view of the skyline. A gentle circuit makes the city easier to take in.',
-  'Tokyo Bay': 'Follow the waterfront, then turn back toward the city. Use the shoreline as a visual guide.',
-  'Swiss Alps': 'Follow the valleys and leave room to climb before approaching higher ground.',
-  'Grand Canyon': 'Explore along the rim first. Watch your altitude as the terrain rises ahead of you.',
-  'Ithaka': 'Trace the island shoreline at a relaxed pace, then turn inland for a different perspective.',
-  'Alyzia': 'Try a coastal circuit, using the contrast between land and sea to keep your bearings.',
-  'Cape Town': 'Circle the harbour before heading toward the hills. Leave plenty of room above rising terrain.',
-  'Key West': 'Explore the edges of the island and follow the coastline back to your departure point.'
-};
 const $=id=>document.getElementById(id);
 export class Journey {
   constructor(app, presets, notify, revisit) {
@@ -72,13 +62,11 @@ export class Journey {
     let line='';
     if(this.target){const r=routeInfo(here,this.target);line=`${this.target.name} · ${r.km.toFixed(1)} km · steer ${Math.round(r.bearing).toString().padStart(3,'0')}°`;if(r.km<.5&&!this.arrived&&phase==='airborne'){this.arrived=true;this.notify('Destination reached — enjoy the view.');if($('radio').checked)this.app.audio.say('Destination reached.');}}
     $('journey-nav').textContent=line;
-    const places=this.presets;
-    for(const p of places)if(!this.discovered.has(p.name)&&routeInfo(here,p).km<2){this.discovered.add(p.name);$('discovery-note').textContent=`${p.name} · ${PLACE_NOTES[p.name] || p.desc}`;clearTimeout(this.noteTimer);this.noteTimer=setTimeout(()=>$('discovery-note').textContent='',12000);break;}
   }
   finish(flight) {
-    document.body.classList.remove('minimal-flight');$('btn-minimal').textContent='Hide HUD';$('btn-minimal').setAttribute('aria-pressed','false');$('journey-nav').hidden=true;$('discovery-note').textContent='';clearTimeout(this.noteTimer);
+    document.body.classList.remove('minimal-flight');$('btn-minimal').textContent='Hide HUD';$('btn-minimal').setAttribute('aria-pressed','false');$('journey-nav').hidden=true;
     if(!flight||flight.timeSec<1)return;
-    try {this.journal.save({kind:'flight',name:this.departure?.name||'Flight',start:this.departure,target:this.target,world:flight.world,vehicle:flight.vehicle,timeSec:flight.timeSec,distanceKm:flight.distanceKm,topSpeedKmh:flight.topSpeedKmh,path:flight.path,discoveries:[...(this.discovered||[])]});}catch{this.notify('Logbook could not save. Browser storage may be full or unavailable.');}
+    try {this.journal.save({kind:'flight',name:this.departure?.name||'Flight',start:this.departure,target:this.target,world:flight.world,vehicle:flight.vehicle,timeSec:flight.timeSec,distanceKm:flight.distanceKm,topSpeedKmh:flight.topSpeedKmh,path:flight.path});}catch{this.notify('Logbook could not save. Browser storage may be full or unavailable.');}
   }
   toggleMinimal(){const on=document.body.classList.toggle('minimal-flight');$('btn-minimal').textContent=on?'Show HUD':'Hide HUD';$('btn-minimal').setAttribute('aria-pressed',String(on));}
   async photo(){
@@ -102,7 +90,6 @@ export class Journey {
       const meta=document.createElement('p');meta.textContent=`${new Date(e.date).toLocaleString()} · ${e.world && e.world!=='google'?'Archived flight':'Real world'}${e.kind==='flight'?` · ${(e.distanceKm||0).toFixed(1)} km · ${Math.round((e.timeSec||0)/60)} min${e.landed?' · Landed':''}`:''}`;card.append(meta);
       if(e.vehicle){const p=document.createElement("p");p.textContent=e.vehicle==="spaceship"?"Wayfarer · Spaceship":"Aerion · Airplane";card.append(p);}
       if(e.target){const p=document.createElement('p');p.textContent=`Route to ${e.target.name}`;card.append(p);}
-      if(e.discoveries?.length){const p=document.createElement('p');p.textContent='Discovered: '+e.discoveries.join(', ');card.append(p);}
       if(e.image){const img=document.createElement('img');img.src=e.image;img.alt=`Flight over ${e.name}`;img.loading='lazy';card.append(img);const a=document.createElement('a');a.href=e.image;a.download='open-skies-journey.jpg';a.textContent='Download photo';card.append(a);}
       if(e.path?.length>1){const map=document.createElementNS('http://www.w3.org/2000/svg','svg');map.setAttribute('viewBox','0 0 300 100');map.setAttribute('role','img');map.setAttribute('aria-label','Recorded flight track, schematic');const line=document.createElementNS(map.namespaceURI,'polyline');line.setAttribute('points',trackPoints(e.path));line.setAttribute('fill','none');line.setAttribute('stroke','#c85d39');line.setAttribute('stroke-width','2');map.append(line);card.append(map);}
       const favorite=document.createElement('button');favorite.textContent=e.favorite?'★ Favorite':'☆ Favorite';favorite.setAttribute('aria-pressed',String(!!e.favorite));favorite.onclick=()=>{try{this.journal.favorite(e.id);this.render();}catch{this.notify('Could not save your favorite.');}};card.append(favorite);
