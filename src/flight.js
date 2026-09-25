@@ -315,12 +315,12 @@ export class Flight {
           return C.Cartesian3.fromDegrees(lng + dLng + Math.sin(t / period) * span, lat + dLat, this.spawnGround + alt);
         }, false),
         ellipsoid: { radii: kind === "zeppelin" ? new C.Cartesian3(42, 12, 12) : new C.Cartesian3(16, 3.5, 3.5), material: C.Color.fromCssColorString(color).withAlpha(.88) },
-        billboard: { image: ad(text, color, kind === "zeppelin" ? "#72f6ff" : "#ffd166"), width: kind === "zeppelin" ? 190 : 120, height: kind === "zeppelin" ? 57 : 36, pixelOffset: new C.Cartesian2(0, -22), disableDepthTestDistance: 7000 },
+        billboard: { image: ad(text, color, kind === "zeppelin" ? "#72f6ff" : "#ffd166"), width: kind === "zeppelin" ? 260 : 120, height: kind === "zeppelin" ? 78 : 36, pixelOffset: new C.Cartesian2(0, -26), disableDepthTestDistance: 7000 },
       });
       this._traffic.push({ entity, kind });
     };
-    add("zeppelin", .004, .002, 240, "#e72b67", "NIKE  //  JUST FLY", .006, 18);
-    add("zeppelin", -.006, -.002, 310, "#1d8f68", "adidas  //  IMPOSSIBLE IS NOTHING", .005, 22);
+    add("zeppelin", .02, .009, 520, "#e72b67", "NIKE  //  JUST FLY", .012, 28);
+    add("zeppelin", -.026, -.012, 680, "#1d8f68", "adidas  //  IMPOSSIBLE IS NOTHING", .01, 34);
     add("plane", .002, -.004, 210, "#2278c9", "SKYLINE AIR", .012, 12);
   }
 
