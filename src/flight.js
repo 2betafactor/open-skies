@@ -36,7 +36,7 @@ export const DEFAULT_PARAMS = {
   autoFreq: 2.2, // auto-level spring frequency
   autoDamp: 0.95, // near-critical damping prevents hands-off wing rock
   pitchClampDeg: 360,
-  rollClampDeg: 180,
+  rollClampDeg: 360,
   ambientDeg: 0, // idle air drift (0 = perfectly steady; raise for life)
   // Static model-mount correction — measured live: -105° flies the nose straight.
   modelYawDeg: -105,
@@ -733,24 +733,25 @@ export class Flight {
     const targetSpeed = (minMs + (maxMs - minMs) * this.throttle) * (1 - .15 * this.flaps / 40);
     this.speed += (targetSpeed - this.speed) * (1 - Math.exp(-h / P.throttleLag));
 
-    // Rotational inertia: input drives angular velocity; spring auto-level idle.
-    const maxRoll = P.maxRollRateDeg * D2R * auth;
-    const maxPitch = P.maxPitchRateDeg * D2R * auth;
-    if (Math.abs(inR) > 0.01) {
-      this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
+    // Normal input uses inertia and auto-level. A triggered aerobatic move uses
+    // a deterministic full rotation, so R/T always complete instead of
+    // stalling halfway through when speed or frame rate changes.
+    if (flipping) {
+      const rate = (2 * Math.PI / (this._flipRoll ? 2.6 : 2.8));
+      if (this._flipRoll) this.roll += rate * h;
+      else this.pitch += rate * h;
+      this._rollVel = 0;
+      this._pitchVel = 0;
     } else {
-      const w = c.level ? Math.max(3.5, P.autoFreq) : P.autoFreq;
-      this._rollVel += (-this.roll * w * w - 2 * P.autoDamp * w * this._rollVel) * h;
+      const maxRoll = P.maxRollRateDeg * D2R * auth;
+      const maxPitch = P.maxPitchRateDeg * D2R * auth;
+      if (Math.abs(inR) > 0.01) this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
+      else { const w = c.level ? Math.max(3.5, P.autoFreq) : P.autoFreq; this._rollVel += (-this.roll * w * w - 2 * P.autoDamp * w * this._rollVel) * h; }
+      this.roll = clamp(this.roll + this._rollVel * h, -P.rollClampDeg * D2R, P.rollClampDeg * D2R);
+      if (Math.abs(inP) > 0.01) this._pitchVel += (inP * maxPitch - this._pitchVel) * (1 - Math.exp(-P.rotEase * h));
+      else { const w = P.autoFreq; this._pitchVel += (-this.pitch * w * w - 2 * P.autoDamp * w * this._pitchVel) * h; }
+      this.pitch = clamp(this.pitch + this._pitchVel * h, -P.pitchClampDeg * D2R, P.pitchClampDeg * D2R);
     }
-    this.roll = clamp(this.roll + this._rollVel * h, -P.rollClampDeg * D2R, P.rollClampDeg * D2R);
-
-    if (Math.abs(inP) > 0.01) {
-      this._pitchVel += (inP * maxPitch - this._pitchVel) * (1 - Math.exp(-P.rotEase * h));
-    } else {
-      const w = P.autoFreq;
-      this._pitchVel += (-this.pitch * w * w - 2 * P.autoDamp * w * this._pitchVel) * h;
-    }
-    this.pitch = clamp(this.pitch + this._pitchVel * h, -P.pitchClampDeg * D2R, P.pitchClampDeg * D2R);
 
     // Banked-turn coupling + rudder.
     const neutral = Math.abs(inR) < 0.01 && Math.abs(inRud) < 0.01 && Math.abs(this.roll) < 0.004 && Math.abs(this._rollVel) < 0.01;
