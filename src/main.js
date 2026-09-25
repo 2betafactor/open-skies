@@ -556,6 +556,9 @@ async function takeOff(lat, lng, label) {
 }
 
 function beginFlight() {
+  document.body.classList.remove("minimal-flight");
+  document.getElementById("btn-minimal").textContent = "Hide HUD";
+  document.getElementById("btn-minimal").setAttribute("aria-pressed", "false");
   journey.begin();
   Object.assign(app.flight.controls, { pitch: 0, roll: 0, rudder: 0, throttle: 0, level: false });
   app.audio.start();

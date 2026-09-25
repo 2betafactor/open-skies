@@ -9,7 +9,7 @@ const PLANE_SCALE = 0.15; // wingspan ~92 units → ~14 m
 const D2R = Math.PI / 180;
 const STEP = 1 / 60; // physics substep (halves per-frame work vs 1/120)
 
-const FLOOR_WARN = 25; // m AGL
+const FLOOR_WARN = 70; // m AGL — give the pilot time to react
 const FLOOR_CRASH = 6;
 const CEILING_AGL = 4000; // "thin air" measured above local terrain
 const SPAWN_AGL = 350; // metres ABOVE local terrain (works over canyon/alps too)
@@ -35,8 +35,8 @@ export const DEFAULT_PARAMS = {
   throttleLag: 1.5, // s, engine response
   autoFreq: 2.2, // auto-level spring frequency
   autoDamp: 0.95, // near-critical damping prevents hands-off wing rock
-  pitchClampDeg: 60,
-  rollClampDeg: 80,
+  pitchClampDeg: 360,
+  rollClampDeg: 180,
   ambientDeg: 0, // idle air drift (0 = perfectly steady; raise for life)
   // Static model-mount correction — measured live: -105° flies the nose straight.
   modelYawDeg: -105,
@@ -120,6 +120,7 @@ export class Flight {
     this.spawnGround = 0;
     this._marker = null; // "you are here" beacon
     this._targetLL = null;
+    this._traffic = [];
 
     this._rollVel = 0;
     this._pitchVel = 0;
@@ -276,6 +277,7 @@ export class Flight {
     log(`ground ${Math.round(this.spawnGround)}m → spawn ${Math.round(this.spawnGround + SPAWN_AGL)}m`);
 
     this._addPlane();
+    this._spawnTraffic();
 
     this._camHeading = this.heading;
     this.viewer.camera.frustum.fov = 60 * D2R; // fixed FOV (per-frame changes shimmer)
@@ -296,6 +298,39 @@ export class Flight {
       orientation: new C.CallbackProperty(() => this.orientation, false),
       model: { uri: this._uri, scale: this._scale, minimumPixelSize: 64, runAnimations: true },
     });
+  }
+
+  _spawnTraffic() {
+    const C = window.Cesium;
+    if (!this.viewer || !this.spawnLL) return;
+    const { lat, lng } = this.spawnLL;
+    const add = (kind, dLng, dLat, alt, color, text, span, period) => {
+      const entity = this.viewer.entities.add({
+        position: new C.CallbackProperty(() => {
+          const t = (performance.now() - this._flightStart) / 1000;
+          return C.Cartesian3.fromDegrees(lng + dLng + Math.sin(t / period) * span, lat + dLat, this.spawnGround + alt);
+        }, false),
+        ellipsoid: { radii: kind === "zeppelin" ? new C.Cartesian3(42, 12, 12) : new C.Cartesian3(16, 3.5, 3.5), material: C.Color.fromCssColorString(color).withAlpha(.88) },
+        label: { text, font: kind === "zeppelin" ? "bold 17px sans-serif" : "bold 12px sans-serif", fillColor: C.Color.WHITE, outlineColor: C.Color.BLACK, outlineWidth: 4, style: C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -16), disableDepthTestDistance: 7000 },
+      });
+      this._traffic.push({ entity, kind });
+    };
+    add("zeppelin", .004, .002, 240, "#e72b67", "NIKE  //  JUST FLY", .006, 18);
+    add("zeppelin", -.006, -.002, 310, "#1d8f68", "adidas  //  IMPOSSIBLE IS NOTHING", .005, 22);
+    add("plane", .002, -.004, 210, "#2278c9", "SKYLINE AIR", .012, 12);
+  }
+
+  _checkTrafficCollision() {
+    if (!this._traffic?.length || !this.position || this.phase !== "airborne") return;
+    const C = window.Cesium, now = this.viewer.clock.currentTime;
+    for (const item of this._traffic) {
+      const p = item.entity.position.getValue(now);
+      if (p && C.Cartesian3.distance(this.position, p) < (item.kind === "zeppelin" ? 34 : 18)) {
+        this.warning = "IMPACT";
+        this._crash();
+        return;
+      }
+    }
   }
 
   // A glowing beacon + "YOU" label at the target location (fly-toward-me mode).
@@ -720,6 +755,7 @@ export class Flight {
     const a = 1 - Math.exp(-h / P.velLag);
     this._velDir = norm(add(scale(this._velDir, 1 - a), scale(b.F, a)));
     addScaled(this.position, this._velDir, this.speed * h);
+    this._checkTrafficCollision();
 
     this._vspeed = this.speed * Math.sin(this.pitch); // climb rate for the HUD
     if (this._altitude(h)) return;
@@ -860,6 +896,11 @@ export class Flight {
     this.velocity = add(v, scale(accel, h));
     addScaled(this.position, this.velocity, h);
     this.speed = C.Cartesian3.magnitude(this.velocity);
+    const minGlide = (P.minSpeedKmh / 3.6) * 0.45;
+    if (this.speed < minGlide) {
+      this.velocity = add(this.velocity, scale(F, minGlide - this.speed));
+      this.speed = C.Cartesian3.magnitude(this.velocity);
+    }
     this._vspeed = dot(this.velocity, up);
 
     // Rotation: control authority scales with dynamic pressure (mushy slow).
@@ -897,7 +938,7 @@ export class Flight {
       this.roll += (Math.sin(this._t * 27) * 0.6 + 0.4) * D2R * h; // slight drop
     }
 
-    this.pitch = clamp(this.pitch, -80 * D2R, 80 * D2R);
+    this.pitch = clamp(this.pitch, -P.pitchClampDeg * D2R, P.pitchClampDeg * D2R);
     this.roll = clamp(this.roll, -P.rollClampDeg * D2R, P.rollClampDeg * D2R);
 
     if (this._altitude(h)) return;
@@ -1204,6 +1245,8 @@ export class Flight {
       this.viewer.entities.remove(this._marker);
       this._marker = null;
     }
+    for (const item of this._traffic || []) this.viewer.entities.remove(item.entity);
+    this._traffic = [];
     // Release the locked camera frame so landing/next vehicle can reposition.
     this.viewer.camera.lookAtTransform(window.Cesium.Matrix4.IDENTITY);
     this._camHeading = undefined;
