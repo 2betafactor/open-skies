@@ -9,16 +9,27 @@ Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static fi
 + leaderboard API). No build step, no framework, no third-party Python packages.
 
 ## Features
-- Free-flight arcade model over real 3D terrain, with a chase camera, HUD
-  (airspeed / altitude / heading / throttle), engine + wind audio, and a
-  golden-hour look.
+- Free-flight arcade model over real 3D terrain, with chase / cockpit / profile
+  cameras, mouse free-look, HUD (airspeed / altitude / heading / throttle),
+  engine + wind audio, and a golden-hour look.
+- **Beginner & Aerobatic assist modes** — Beginner auto-levels and guards the
+  floor; Aerobatic frees the attitude for full loops, barrel rolls and
+  sustained inverted flight (the flight path really flies the maneuver). A
+  **LEVEL** recovery button (`L`) rights the plane from any attitude, and a
+  sensitivity slider tunes control response.
+- **Animated control surfaces** — ailerons, elevator and rudder (elevons on the
+  Wayfarer) deflect with your inputs on the glTF models.
+- **Ring Run activity** — an optional checkpoint course of glowing rings with a
+  timer; free flight stays the default.
 - **Graphics toggle** — Performance / Balanced / Quality (photorealistic tiles are
   GPU-heavy; pick your trade-off).
 - **Leaderboard** ranked by distance flown, with medals.
 - **Flight recording + shareable replays** — `/?flight=<id>` replays a saved flight.
 
 ## Controls
-`W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Esc` / **Finish** to finish.
+`W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Space` hold
+level · `L` recover · `B` assist mode · `R` loop · `T` barrel roll · `C` camera
+· drag with the mouse to look around · `Esc` / **Finish** to finish.
 
 ## Run locally
 Run `python3 server.py` and open http://localhost:8000. **Real world** is the
@@ -35,10 +46,13 @@ For **Real world** mode:
 4. Open http://localhost:8000
 
 ## Deploy (Railway or any host)
-`server.py` it listens on `$PORT` and injects the key from the
-`GOOGLE_MAPS_API_KEY` env var into `/config.js`, so **the key never lives in the
-repo**. Leaderboard scores are written to `$DATA_DIR` (mount a persistent volume
-there so they survive redeploys).
+Production serving runs `python3 serve.py` (see `Procfile`), which serves the
+WSGI app in `wsgi.py` through **waitress** (`requirements.txt`) — Python's docs
+advise against exposing the stdlib `http.server` publicly, and `serve.py` falls
+back to it only for dependency-free local dev. The app listens on `$PORT` and
+injects the key from the `GOOGLE_MAPS_API_KEY` env var into `/config.js`, so
+**the key never lives in the repo**. Leaderboard scores are written to
+`$DATA_DIR` (mount a persistent volume there so they survive redeploys).
 
 Env vars:
 - `GOOGLE_MAPS_API_KEY` — your Maps key (**restrict it by HTTP referrer** to your

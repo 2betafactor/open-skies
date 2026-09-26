@@ -60,8 +60,10 @@ export class Journey {
     this.here=here;
     const phase=f.phase;
     let line='';
-    if(this.target){const r=routeInfo(here,this.target);line=`${this.target.name} · ${r.km.toFixed(1)} km · steer ${Math.round(r.bearing).toString().padStart(3,'0')}°`;if(r.km<.5&&!this.arrived&&phase==='airborne'){this.arrived=true;this.notify('Destination reached — enjoy the view.');if($('radio').checked)this.app.audio.say('Destination reached.');}}
+    if(this.target){const r=routeInfo(here,this.target);line=`${this.target.name} · ${r.km.toFixed(1)} km · steer ${Math.round(r.bearing).toString().padStart(3,'0')}°`;if(r.km<.5&&!this.arrived&&phase==='airborne'){this.arrived=true;this.notify('Destination reached — enjoy the view.');if($('radio')?.checked)this.app.audio.say('Destination reached.');}}
+    else if(this.departure){const r=routeInfo(here,this.departure);line=`${this.departure.name||'Departure'} · ${r.km.toFixed(1)} km away`;}
     $('journey-nav').textContent=line;
+    $('journey-nav').hidden=!line;
   }
   finish(flight) {
     document.body.classList.remove('minimal-flight');$('btn-minimal').textContent='Hide HUD';$('btn-minimal').setAttribute('aria-pressed','false');$('journey-nav').hidden=true;

@@ -1,1 +1,3 @@
-# Open Skies uses only the Python standard library — no dependencies.
+# Production WSGI server (pure Python). Local dev needs nothing: serve.py
+# falls back to the stdlib server when waitress isn't installed.
+waitress>=3.0

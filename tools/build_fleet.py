@@ -4,13 +4,19 @@ from pathlib import Path
 from collections import defaultdict
 ROOT=Path(__file__).resolve().parents[1]
 class Model:
- def __init__(self):self.parts=defaultdict(lambda:[[],[]]);self.materials=[]
+ def __init__(self):self.parts=defaultdict(lambda:[[],[]]);self.materials=[];self.origins={};self.current=None
  def mat(self,name,color,metal=0,rough=.4,emission=None):
   m={'name':name,'pbrMetallicRoughness':{'baseColorFactor':color+[1],'metallicFactor':metal,'roughnessFactor':rough},'doubleSided':True}
   if emission:m['emissiveFactor']=emission
   self.materials.append(m);return len(self.materials)-1
+ # Movable parts live in their own named glTF node, with the node origin ON the
+ # hinge line — the game rotates the node to deflect the surface.
+ def node(self,name,origin):self.origins[name]=origin;self.current=name
+ def root(self):self.current=None
  def mesh(self,mat,verts,tris):
-  v,t=self.parts[mat];offset=len(v);v.extend(verts);t.extend(tuple(i+offset for i in tri) for tri in tris)
+  if self.current:
+   ox,oy,oz=self.origins[self.current];verts=[(x-ox,y-oy,z-oz) for x,y,z in verts]
+  v,t=self.parts[(self.current,mat)];offset=len(v);v.extend(verts);t.extend(tuple(i+offset for i in tri) for tri in tris)
  def rings(self,mat,rings,close=False):
   n=len(rings[0]);v=[p for ring in rings for p in ring];t=[]
   for j in range(len(rings)-1):
@@ -42,7 +48,7 @@ class Model:
   self.rings(mat,rings,True)
  def patch(self,mat,points):self.mesh(mat,points,[(0,i,i+1) for i in range(1,len(points)-1)])
  def save(self,path):
-  data=bytearray();views=[];access=[];primitives=[]
+  data=bytearray();views=[];access=[]
   def acc(values,kind,fmt,ctype):
    while len(data)%4:data.append(0)
    flat=[x for v in values for x in v] if kind!='SCALAR' else values
@@ -50,20 +56,47 @@ class Model:
    d={'bufferView':view,'componentType':ctype,'count':len(values),'type':kind}
    if kind=='VEC3':d.update(min=[min(v[i] for v in values) for i in range(3)],max=[max(v[i] for v in values) for i in range(3)])
    access.append(d);return len(access)-1
-  for mat,(verts,tris) in self.parts.items():
-   # Cesium adapts glTF +Z forward to its local +X forward.
-   verts=[(-z,y,x) for x,y,z in verts]
-   normals=[[0,0,0] for _ in verts]
-   for a,b,c in tris:
-    u=[verts[b][i]-verts[a][i] for i in range(3)];v=[verts[c][i]-verts[a][i] for i in range(3)];n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
-    for idx in [a,b,c]:
-     for k in range(3):normals[idx][k]+=n[k]
-   normals=[[x/(math.sqrt(sum(y*y for y in n)) or 1) for x in n] for n in normals]
-   primitives.append({'attributes':{'POSITION':acc(verts,'VEC3','f',5126),'NORMAL':acc(normals,'VEC3','f',5126)},'indices':acc([i for t in tris for i in t],'SCALAR','I',5125),'material':mat})
-  gltf={'asset':{'version':'2.0','generator':'Open Skies original fleet builder'},'scene':0,'scenes':[{'nodes':[0]}],'nodes':[{'mesh':0,'name':path.stem,'extras':{'forwardAxis':'+Z','upAxis':'+Y'}}],'meshes':[{'primitives':primitives}],'materials':self.materials,'buffers':[{'byteLength':len(data)}],'bufferViews':views,'accessors':access}
+  def build(parts):
+   primitives=[]
+   for mat,(verts,tris) in parts:
+    # Cesium adapts glTF +Z forward to its local +X forward.
+    verts=[(-z,y,x) for x,y,z in verts]
+    normals=[[0,0,0] for _ in verts]
+    for a,b,c in tris:
+     u=[verts[b][i]-verts[a][i] for i in range(3)];v=[verts[c][i]-verts[a][i] for i in range(3)];n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+     for idx in [a,b,c]:
+      for k in range(3):normals[idx][k]+=n[k]
+    normals=[[x/(math.sqrt(sum(y*y for y in n)) or 1) for x in n] for n in normals]
+    primitives.append({'attributes':{'POSITION':acc(verts,'VEC3','f',5126),'NORMAL':acc(normals,'VEC3','f',5126)},'indices':acc([i for t in tris for i in t],'SCALAR','I',5125),'material':mat})
+   return primitives
+  by_node=defaultdict(list)
+  for (node,mat),part in self.parts.items():by_node[node].append((mat,part))
+  meshes=[{'primitives':build(by_node.pop(None,[]))}]
+  nodes=[{'mesh':0,'name':path.stem,'extras':{'forwardAxis':'+Z','upAxis':'+Y'}}]
+  for name,parts in by_node.items():
+   meshes.append({'primitives':build(parts)});ox,oy,oz=self.origins[name]
+   nodes.append({'mesh':len(meshes)-1,'name':name,'translation':[-oz,oy,ox]})
+  if len(nodes)>1:nodes[0]['children']=list(range(1,len(nodes)))
+  gltf={'asset':{'version':'2.0','generator':'Open Skies original fleet builder'},'scene':0,'scenes':[{'nodes':[0]}],'nodes':nodes,'meshes':meshes,'materials':self.materials,'buffers':[{'byteLength':len(data)}],'bufferViews':views,'accessors':access}
   js=json.dumps(gltf,separators=(',',':')).encode();js+=b' '*((-len(js))%4);data+=b'\0'*((-len(data))%4)
   path.write_bytes(struct.pack('<III',0x46546c67,2,28+len(js)+len(data))+struct.pack('<II',len(js),0x4e4f534a)+js+struct.pack('<II',len(data),0x004e4942)+data)
-  print(path.name,len(data),'bytes',sum(len(t) for v,t in self.parts.values()),'triangles',len(primitives),'draw batches')
+  print(path.name,len(data),'bytes',sum(len(t) for v,t in self.parts.values()),'triangles',sum(len(m['primitives']) for m in meshes),'draw batches',len(nodes),'nodes')
+
+# A movable surface hinged along the spanwise (Z) axis: wedge cross-section,
+# hinge at the node origin. sections: (x_hinge, y, z, chord, thickness).
+def flap(m,mat,name,sections):
+ origin=tuple(sum(s[i] for s in sections)/len(sections) for i in range(3))
+ m.node(name,origin)
+ m.rings(mat,[[(x,y+t/2,z),(x,y-t/2,z),(x-c,y,z)] for x,y,z,c,t in sections],True)
+ m.root()
+
+# A rudder-style surface hinged along the vertical (Y) axis at z=0.
+# sections: (x_hinge, y, chord, thickness).
+def vflap(m,mat,name,sections):
+ origin=(sum(s[0] for s in sections)/len(sections),sum(s[1] for s in sections)/len(sections),0)
+ m.node(name,origin)
+ m.rings(mat,[[(x,y,t/2),(x,y,-t/2),(x-c,y,0)] for x,y,c,t in sections],True)
+ m.root()
 
 def jet():
  m=Model();white=m.mat('Pearl fuselage',[.82,.86,.88],.25,.28);navy=m.mat('Midnight blue livery',[.025,.095,.14],.35,.3);glass=m.mat('Cockpit and cabin glass',[.025,.07,.10],.65,.13);metal=m.mat('Brushed titanium',[.42,.48,.5],.85,.27);dark=m.mat('Intake interiors',[.025,.028,.03],.25,.6);red=m.mat('Port navigation light',[.8,.025,.015],0,.3,[1,0,0]);green=m.mat('Starboard navigation light',[.02,.7,.2],0,.3,[0,1,.1])
@@ -110,6 +143,11 @@ def jet():
  m.foil(navy,[(-5.1,2.8,.4,0,.11),(-6.6,1.55,3.5,0,.09),(-7.1,.9,4.1,0,.08)],vertical=True)
  # Fairing at the wing/body joint and dorsal antenna.
  m.ellipsoid(white,(-.8,-.55,0),(3.0,.38,1.13));m.foil(metal,[(1.2,.5,.8,0,.1),(1,.3,1.22,0,.1)],vertical=True)
+ # Movable control surfaces — separate named nodes the game deflects live.
+ flap(m,navy,'AileronL',[(-3.57,.02,-5.0,.55,.09),(-4.40,.30,-7.6,.42,.07)])
+ flap(m,navy,'AileronR',[(-3.57,.02,5.0,.55,.09),(-4.40,.30,7.6,.42,.07)])
+ flap(m,white,'Elevator',[(-7.96,1.42,-3.4,.5,.07),(-8.09,1.17,-.5,.6,.08),(-8.09,1.17,.5,.6,.08),(-7.96,1.42,3.4,.5,.07)])
+ vflap(m,navy,'Rudder',[(-7.91,.9,.55,.09),(-7.99,3.6,.45,.07)])
  m.save(ROOT/'assets/aerion.glb')
 
 def ship():
@@ -127,6 +165,9 @@ def ship():
   m.ellipsoid(glow,(-7.25,-.12,z),(.3,.28,.28),20,8)
   m.patch(amber,[(-2.7,.12,side*3),(-3.15,.12,side*3.6),(-3.5,.12,side*3.6),(-3.05,.12,side*3)])
   m.ellipsoid(glow,(-5.35,-.1,side*6.1),(.22,.07,.07),12,6)
+ # Elevons: the ship banks and pitches with these blended surfaces.
+ flap(m,edge,'ElevonL',[(-4.6,-.08,-2.5,.7,.1),(-5.93,-.24,-5.0,.5,.08)])
+ flap(m,edge,'ElevonR',[(-4.6,-.08,2.5,.7,.1),(-5.93,-.24,5.0,.5,.08)])
  m.save(ROOT/'assets/wayfarer.glb')
 
 def cyber():

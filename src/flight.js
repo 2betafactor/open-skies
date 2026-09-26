@@ -121,11 +121,28 @@ export class Flight {
     this._marker = null; // "you are here" beacon
     this._targetLL = null;
     this._traffic = [];
-    this._flipUntil = 0;
-    this._flipPitch = 0;
-    this._flipRoll = 0;
-    this._stuntAngle = 0;
-    this._stuntAxis = "";
+    // Aerobatic maneuvers are REAL rotations driven through the physics step —
+    // the flight path traces the loop/roll, nothing is visual-only.
+    this._stuntRemaining = 0; // radians left to rotate
+    this._stuntAxis = ""; // "pitch" | "roll"
+    this._stuntRate = 0; // rad/s
+
+    // Assist level. "beginner": auto-level springs, pitch clamp, forced pull-up.
+    // "aerobatic": free attitude — full loops, rolls and inverted flight; the
+    // plane is never forced upright (warnings still show, crashes still count).
+    this.assist = "beginner";
+    this.sensitivity = 1; // 0.4–1.6 multiplier on control rates
+    // Free-attitude state: body axes in ECEF (authoritative in aerobatic mode).
+    this._axF = null; // forward unit vector
+    this._axU = null; // up unit vector
+    this._upRef = null; // local-up used to keep attitude tied to the horizon
+    this._recoverUntil = 0; // recovery (auto-level) window from the LEVEL button
+    // Free-look camera offsets (drag to look around; eases back on release).
+    this._lookYaw = 0;
+    this._lookPitch = 0;
+    this._lookActive = false;
+    // Smoothed control-surface deflections driving the model's named nodes.
+    this._surf = { ail: 0, elev: 0, rud: 0 };
 
     this._rollVel = 0;
     this._pitchVel = 0;
@@ -227,6 +244,7 @@ export class Flight {
 
     const sLat = lat;
     const sLng = lng;
+    this.cameraView = "chase"; // cockpit hides the airframe — new flights start outside
     this._targetLL = null;
     this.spawnLL = { lat: sLat, lng: sLng };
     this.phase = "airborne";
@@ -239,6 +257,15 @@ export class Flight {
     this._rollVel = 0;
     this._pitchVel = 0;
     this._velDir = null;
+    this._axF = null;
+    this._axU = null;
+    this._upRef = null;
+    this._stuntRemaining = 0;
+    this._stuntAxis = "";
+    this._recoverUntil = 0;
+    this._lookYaw = 0;
+    this._lookPitch = 0;
+    this._surf = { ail: 0, elev: 0, rud: 0 };
     this._acc = 0;
     this._t = 0;
     this.throttle = 0.5;
@@ -301,8 +328,39 @@ export class Flight {
     this.plane = this.viewer.entities.add({
       position: new C.CallbackProperty(() => this.position, false),
       orientation: new C.CallbackProperty(() => this.orientation, false),
-      model: { uri: this._uri, scale: this._scale, minimumPixelSize: 64, runAnimations: true },
+      model: {
+        uri: this._uri,
+        scale: this._scale,
+        minimumPixelSize: 64,
+        runAnimations: true,
+        nodeTransformations: this._nodeTransforms(),
+      },
     });
+  }
+
+  // Live control-surface deflections for the model's named hinge nodes.
+  // Vehicles without a given node simply ignore that entry.
+  _nodeTransforms() {
+    const C = window.Cesium;
+    const hinge = (axis, get) => {
+      const q = new C.Quaternion();
+      return new C.NodeTransformationProperty({
+        rotation: new C.CallbackProperty(() => C.Quaternion.fromAxisAngle(axis, get(), q), false),
+      });
+    };
+    const X = C.Cartesian3.UNIT_X;
+    const Y = C.Cartesian3.UNIT_Y;
+    const s = this._surf;
+    // +rotation about the hinge (+X = port) lifts a trailing edge; roll-right
+    // therefore drops the left aileron (-) and raises the right one (+).
+    return {
+      AileronL: hinge(X, () => -s.ail * 0.38),
+      AileronR: hinge(X, () => s.ail * 0.38),
+      Elevator: hinge(X, () => s.elev * 0.35),
+      Rudder: hinge(Y, () => s.rud * 0.42),
+      ElevonL: hinge(X, () => (-s.ail + s.elev) * 0.3),
+      ElevonR: hinge(X, () => (s.ail + s.elev) * 0.3),
+    };
   }
 
   _spawnTraffic() {
@@ -372,6 +430,7 @@ export class Flight {
     this._teardown();
     const loadId = ++this._loadId;
     if (!path || path.length < 2) throw new Error("This flight has no recorded path.");
+    this.cameraView = "chase";
     this.setVehicle(VEHICLES.find(v => v.id === vehicleId) || VEHICLES.find(v => v.id === "plane"));
     const [lng0, lat0, alt0, hdg0] = path[0];
     this.spawnLL = { lat: lat0, lng: lng0 };
@@ -603,7 +662,44 @@ export class Flight {
   }
 
   toggleCamera() {
-    this.cameraView = this.cameraView === "chase" ? "profile" : "chase";
+    const order = ["chase", "cockpit", "profile"];
+    this.cameraView = order[(order.indexOf(this.cameraView) + 1) % order.length];
+    return this.cameraView;
+  }
+
+  // Assist level: "beginner" (stabilised) or "aerobatic" (free attitude).
+  setAssist(mode) {
+    this.assist = mode === "aerobatic" ? "aerobatic" : "beginner";
+    if (this.assist === "beginner") {
+      // Come home to the stabilised pipeline from wherever the nose points.
+      this._axF = null;
+      this._axU = null;
+    }
+    log("assist → " + this.assist);
+  }
+
+  // Control sensitivity multiplier (0.4 gentle … 1.6 twitchy).
+  setSensitivity(v) {
+    this.sensitivity = clamp(Number(v) || 1, 0.4, 1.6);
+  }
+
+  // Recovery button: smoothly rights the aircraft over ~1.6 s. Works in any
+  // assist mode; it's the clearly-labelled way out of unusual attitudes.
+  recover() {
+    this._recoverUntil = performance.now() + 1600;
+    this._stuntRemaining = 0;
+    this._stuntAxis = "";
+  }
+
+  // Free-look: accumulate a camera orbit offset (drag), eased back on release.
+  lookBy(dYaw, dPitch) {
+    this._lookActive = true;
+    this._lookYaw = clamp(this._lookYaw + dYaw, -Math.PI, Math.PI);
+    this._lookPitch = clamp(this._lookPitch + dPitch, -1.2, 1.2);
+  }
+
+  lookRelease() {
+    this._lookActive = false;
   }
 
   cycleFlaps() {
@@ -619,6 +715,9 @@ export class Flight {
       const b = this._basisFor(this.heading, this.pitch, this.roll);
       this.velocity = scale(b.F, this.speed);
       this._thrustN = this.throttle * this.P.maxThrust;
+      this._axF = null; // sim integrates Euler directly
+      this._stuntRemaining = 0;
+      this._stuntAxis = "";
       this.mode = "sim";
     } else {
       this.speed = window.Cesium.Cartesian3.magnitude(this.velocity);
@@ -627,13 +726,14 @@ export class Flight {
     log("mode → " + this.mode);
   }
 
+  // Trigger a full loop (R) or barrel roll (T). These are genuine rotations
+  // integrated by the physics step — the aircraft flies THROUGH the maneuver.
   startFlip(kind = "backflip") {
-    if (this.vehicleType === "balloon") return;
-    this._flipUntil = performance.now() + (kind === "barrel" ? 2600 : 3000);
-    this._flipPitch = kind === "backflip" ? 1 : 0;
-    this._flipRoll = kind === "barrel" ? 1 : 0;
-    this._stuntAngle = 0;
+    if (this.vehicleType === "balloon" || this.mode !== "arcade") return;
+    if (this._stuntRemaining > 0) return; // finish the current one first
     this._stuntAxis = kind === "barrel" ? "roll" : "pitch";
+    this._stuntRemaining = 2 * Math.PI;
+    this._stuntRate = (2 * Math.PI) / (kind === "barrel" ? 2.2 : 2.8); // rad/s
   }
 
   // ---- fixed-step loop ----
@@ -721,63 +821,179 @@ export class Flight {
     this._t += h;
 
     const shp = (x) => Math.sign(x) * x * x; // input curve
-    const flipping = performance.now() < this._flipUntil;
-    if (!flipping && (this._flipPitch || this._flipRoll)) {
-      // Stunts are visual-only rotations; the navigation attitude stays level.
-      this._stuntAngle = 0;
-      this._stuntAxis = "";
-      this._flipPitch = 0;
-      this._flipRoll = 0;
-    }
-    if (flipping) this._stuntAngle += (2 * Math.PI / (this._flipRoll ? 2.6 : 2.8)) * h;
-    const inP = flipping ? 0 : shp(clamp(c.pitch, -1, 1));
-    const inR = flipping ? 0 : (c.level ? 0 : shp(clamp(c.roll, -1, 1)));
+    const aerobatic = this.assist === "aerobatic";
+    const stunt = this._stuntRemaining > 0 ? this._stuntAxis : "";
+    const recovering = performance.now() < this._recoverUntil || (c.level && !stunt);
+
+    const inP = stunt === "pitch" ? 0 : shp(clamp(c.pitch, -1, 1));
+    const inR = stunt === "roll" || (recovering && !aerobatic) ? 0 : shp(clamp(c.roll, -1, 1));
     const inRud = clamp(c.rudder, -1, 1);
 
     const minMs = P.minSpeedKmh / 3.6;
     const maxMs = P.maxSpeedKmh / 3.6;
-    const auth = 0.6 + 0.4 * (minMs / Math.max(minMs, this.speed)); // calmer when fast
+    // Calmer when fast; scaled by the pilot's sensitivity preference.
+    const auth = (0.6 + 0.4 * (minMs / Math.max(minMs, this.speed))) * this.sensitivity;
 
     // Throttle → target speed (eased, engine lag).
     this.throttle = clamp(this.throttle + c.throttle * 0.5 * h, 0, 1);
     const targetSpeed = (minMs + (maxMs - minMs) * this.throttle) * (1 - .15 * this.flaps / 40);
     this.speed += (targetSpeed - this.speed) * (1 - Math.exp(-h / P.throttleLag));
 
-    // Normal input uses inertia and auto-level. A triggered aerobatic move uses
-    // a deterministic full rotation, so R/T always complete instead of
-    // stalling halfway through when speed or frame rate changes.
-    if (!flipping) {
-      const maxRoll = P.maxRollRateDeg * D2R * auth;
-      const maxPitch = P.maxPitchRateDeg * D2R * auth;
-      if (Math.abs(inR) > 0.01) this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
-      else { const w = c.level ? Math.max(3.5, P.autoFreq) : P.autoFreq; this._rollVel += (-this.roll * w * w - 2 * P.autoDamp * w * this._rollVel) * h; }
+    const maxRoll = P.maxRollRateDeg * D2R * auth * (aerobatic ? 1.4 : 1);
+    const maxPitch = P.maxPitchRateDeg * D2R * auth * (aerobatic ? 1.6 : 1);
+
+    // Two attitude pipelines:
+    //  free  — body-axis rotation of an ECEF basis: unrestricted loops, rolls
+    //          and inverted flight. Used in aerobatic mode and during R/T
+    //          stunts (which are deterministic full rotations, so they always
+    //          complete regardless of speed or frame rate).
+    //  spring — the stabilised Euler pipeline with auto-level springs. Used in
+    //          beginner mode and while recovering (Space hold / LEVEL button).
+    const free = stunt || (aerobatic && !recovering);
+    let yawAbs = 0;
+
+    if (free) {
+      this._seedAttitude();
+      if (stunt === "roll") this._rollVel = this._stuntRate;
+      else if (Math.abs(inR) > 0.01) this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
+      else this._rollVel *= Math.exp(-1.6 * h); // rate damping only — attitude holds
+      if (stunt === "pitch") this._pitchVel = this._stuntRate;
+      else if (Math.abs(inP) > 0.01) this._pitchVel += (inP * maxPitch - this._pitchVel) * (1 - Math.exp(-P.rotEase * h));
+      else this._pitchVel *= Math.exp(-1.6 * h);
+
+      const yawBody = inRud * P.rudderRateDeg * D2R * this.sensitivity;
+      // Banked-turn coupling fades out as the nose goes vertical.
+      const coord = stunt ? 0 : Math.sin(this.roll) * P.turnFactor * Math.max(0, Math.cos(this.pitch));
+      this._rotateBody(this._rollVel * h, this._pitchVel * h, -(yawBody) * h, -(coord) * h);
+      if (stunt) {
+        this._stuntRemaining -= this._stuntRate * h;
+        if (this._stuntRemaining <= 0) {
+          this._stuntRemaining = 0;
+          this._stuntAxis = "";
+          if (!aerobatic) { this._rollVel = 0; this._pitchVel = 0; } // springs take over cleanly
+        }
+      }
+      this._extractEuler();
+      yawAbs = Math.abs(yawBody + coord);
+    } else {
+      // Spring pipeline. Recovery uses the stiff spring on BOTH axes.
+      this._axF = null; // Euler is authoritative again
+      this._upRef = null;
+      if (!recovering && Math.abs(inR) > 0.01) this._rollVel += (inR * maxRoll - this._rollVel) * (1 - Math.exp(-P.rotEase * h));
+      else { const w = recovering ? Math.max(3.5, P.autoFreq) : P.autoFreq; this._rollVel += (-this.roll * w * w - 2 * P.autoDamp * w * this._rollVel) * h; }
       this.roll = clamp(this.roll + this._rollVel * h, -P.rollClampDeg * D2R, P.rollClampDeg * D2R);
-      if (Math.abs(inP) > 0.01) this._pitchVel += (inP * maxPitch - this._pitchVel) * (1 - Math.exp(-P.rotEase * h));
-      else { const w = P.autoFreq; this._pitchVel += (-this.pitch * w * w - 2 * P.autoDamp * w * this._pitchVel) * h; }
-      this.pitch = clamp(this.pitch + this._pitchVel * h, -P.pitchClampDeg * D2R, P.pitchClampDeg * D2R);
+      if (!recovering && Math.abs(inP) > 0.01) this._pitchVel += (inP * maxPitch - this._pitchVel) * (1 - Math.exp(-P.rotEase * h));
+      else { const w = recovering ? Math.max(3.5, P.autoFreq) : P.autoFreq; this._pitchVel += (-this.pitch * w * w - 2 * P.autoDamp * w * this._pitchVel) * h; }
+      // Beginner keeps a friendly pitch envelope; aerobatic recovery does not clamp.
+      const pClamp = (aerobatic ? P.pitchClampDeg : Math.min(P.pitchClampDeg, 70)) * D2R;
+      this.pitch = clamp(this.pitch + this._pitchVel * h, -pClamp, pClamp);
+
+      // Banked-turn coupling + rudder.
+      const neutral = Math.abs(inR) < 0.01 && Math.abs(inRud) < 0.01 && Math.abs(this.roll) < 0.004 && Math.abs(this._rollVel) < 0.01;
+      const yawRate = neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R;
+      this.heading = wrap2pi(this.heading + yawRate * h);
+      yawAbs = Math.abs(yawRate);
     }
 
-    // Banked-turn coupling + rudder.
-    const neutral = Math.abs(inR) < 0.01 && Math.abs(inRud) < 0.01 && Math.abs(this.roll) < 0.004 && Math.abs(this._rollVel) < 0.01;
-    const yawRate = neutral ? 0 : Math.sin(this.roll) * P.turnFactor + inRud * P.rudderRateDeg * D2R;
-    this.heading = wrap2pi(this.heading + yawRate * h);
-
-    // Energy exchange + turn bleed.
+    // Energy exchange + turn bleed. sin(pitch) is the nose's climb fraction in
+    // BOTH pipelines (extracted pitch is exact), so loops trade speed properly:
+    // slow over the top, fast on the way down.
     this.speed += -Math.sin(this.pitch) * 9.8 * P.energyFactor * h;
-    this.speed -= Math.abs(yawRate) * this.speed * P.turnBleed * h;
+    this.speed -= yawAbs * this.speed * P.turnBleed * h;
     this.speed = clamp(this.speed, minMs * 0.5, maxMs * 1.1);
 
     // Move along a velocity vector that LAGS the nose (mass / drift feel).
-    const b = this._basisFor(this.heading, this.pitch, this.roll);
-    if (!this._velDir) this._velDir = C.Cartesian3.clone(b.F, new C.Cartesian3());
+    const F = this._axF || this._basisFor(this.heading, this.pitch, this.roll).F;
+    if (!this._velDir) this._velDir = C.Cartesian3.clone(F, new C.Cartesian3());
     const a = 1 - Math.exp(-h / P.velLag);
-    this._velDir = norm(add(scale(this._velDir, 1 - a), scale(b.F, a)));
+    this._velDir = norm(add(scale(this._velDir, 1 - a), scale(F, a)));
     addScaled(this.position, this._velDir, this.speed * h);
+    this._transportAttitude();
     this._checkTrafficCollision();
 
     this._vspeed = this.speed * Math.sin(this.pitch); // climb rate for the HUD
     if (this._altitude(h)) return;
     this.propAngle = wrap2pi(this.propAngle + (10 + this.throttle * 70) * h);
+  }
+
+  // ---- free-attitude helpers (aerobatic mode / stunts) ----
+  // Seed the ECEF body axes from the current Euler attitude.
+  _seedAttitude(force = false) {
+    if (this._axF && !force) return;
+    const C = window.Cesium;
+    const b = this._basisFor(this.heading, this.pitch, this.roll);
+    this._axF = C.Cartesian3.clone(b.F, this._axF || new C.Cartesian3());
+    this._axU = C.Cartesian3.clone(b.U, this._axU || new C.Cartesian3());
+    this._upRef = null;
+  }
+
+  // Rotate the body axes: aF about forward (roll+ = right wing down), aR about
+  // the right wing (aR+ = nose up), aU about body up, aW about local up.
+  _rotateBody(aF, aR, aU, aW) {
+    const C = window.Cesium;
+    const F = this._axF, U = this._axU;
+    const R = norm(cross(F, U));
+    let q = null;
+    const tmp = new C.Quaternion();
+    const apply = (axis, ang) => {
+      if (!ang) return;
+      const rot = C.Quaternion.fromAxisAngle(axis, ang, tmp);
+      q = q ? C.Quaternion.multiply(rot, q, q) : C.Quaternion.clone(rot, new C.Quaternion());
+    };
+    apply(F, aF);
+    apply(R, aR);
+    apply(U, aU);
+    if (aW) apply(norm(C.Cartesian3.clone(this.position, new C.Cartesian3())), aW);
+    if (!q) return;
+    const m = C.Matrix3.fromQuaternion(q, new C.Matrix3());
+    C.Matrix3.multiplyByVector(m, F, F);
+    C.Matrix3.multiplyByVector(m, U, U);
+    norm(F);
+    C.Cartesian3.subtract(U, scale(F, dot(F, U)), U); // re-orthogonalise
+    norm(U);
+  }
+
+  // Keep the stored attitude aligned with the local horizon as the plane
+  // travels (the ENU frame rotates with the Earth's curvature).
+  _transportAttitude() {
+    if (!this._axF) return;
+    const C = window.Cesium;
+    const uNew = norm(C.Cartesian3.clone(this.position, new C.Cartesian3()));
+    if (this._upRef) {
+      const d = clamp(dot(this._upRef, uNew), -1, 1);
+      const ang = Math.acos(d);
+      if (ang > 1e-9) {
+        const axis = cross(this._upRef, uNew);
+        if (C.Cartesian3.magnitude(axis) > 1e-12) {
+          const q = C.Quaternion.fromAxisAngle(norm(axis), ang, new C.Quaternion());
+          const m = C.Matrix3.fromQuaternion(q, new C.Matrix3());
+          C.Matrix3.multiplyByVector(m, this._axF, this._axF);
+          C.Matrix3.multiplyByVector(m, this._axU, this._axU);
+        }
+      }
+    }
+    this._upRef = uNew;
+  }
+
+  // Derive heading/pitch/roll from the ECEF body axes. These Euler angles
+  // reproduce the attitude EXACTLY through the same HPR path the renderer
+  // uses, so there is no visual seam — only the HUD readouts flip convention
+  // when the nose passes vertical (as real instruments do).
+  _extractEuler() {
+    const C = window.Cesium;
+    const enu = C.Transforms.eastNorthUpToFixedFrame(this.position, C.Ellipsoid.WGS84, new C.Matrix4());
+    const e = norm(col(enu, 0));
+    const n = norm(col(enu, 1));
+    const u = norm(col(enu, 2));
+    const F = this._axF, U = this._axU;
+    const sp = clamp(dot(F, u), -1, 1);
+    this.pitch = Math.asin(sp);
+    const fe = dot(F, e), fn = dot(F, n);
+    if (Math.hypot(fe, fn) > 1e-6) this.heading = wrap2pi(Math.atan2(fe, fn));
+    const fh = add(scale(e, Math.sin(this.heading)), scale(n, Math.cos(this.heading)));
+    const upNoRoll = norm(add(scale(fh, -Math.sin(this.pitch)), scale(u, Math.cos(this.pitch))));
+    const rightNoRoll = norm(cross(F, upNoRoll));
+    this.roll = Math.atan2(dot(U, rightNoRoll), dot(U, upNoRoll));
   }
 
   // Dispatch to the selected model.
@@ -801,6 +1017,13 @@ export class Flight {
     if (this.vehicleType === "balloon") this._stepBalloon(h);
     else if (this.mode === "sim") this._stepSim(h);
     else this._stepArcade(h);
+
+    // Ease the visible control surfaces toward the pilot's inputs (the model's
+    // named aileron/elevator/rudder nodes read these each frame).
+    const k = 1 - Math.exp(-h / 0.08);
+    this._surf.ail += (clamp(c.roll, -1, 1) - this._surf.ail) * k;
+    this._surf.elev += (clamp(c.pitch, -1, 1) - this._surf.elev) * k;
+    this._surf.rud += (clamp(c.rudder, -1, 1) - this._surf.rud) * k;
   }
 
   // Simple, honest balloon: throttle is the burner (rise/descend, laggy), it
@@ -1019,8 +1242,12 @@ export class Flight {
     if (sustained && !grace) this._pullUntil = now + 1500;
     if (this._pullUntil && now < this._pullUntil && !grace) {
       this.warning = "PULL UP";
-      this.pitch += (10 * D2R - this.pitch) * (1 - Math.exp(-1.2 * h)); // gentle
-      this._pitchVel *= Math.exp(-3 * h);
+      // Beginner gets a gentle helping hand; aerobatic pilots are warned but
+      // never overridden — the sky (and the ground) is theirs.
+      if (this.assist === "beginner" && !this._axF) {
+        this.pitch += (10 * D2R - this.pitch) * (1 - Math.exp(-1.2 * h)); // gentle
+        this._pitchVel *= Math.exp(-3 * h);
+      }
       if (this._groundValid && this.agl < FLOOR_CRASH && this._lowSince && now - this._lowSince > 1100) {
         this._crash();
         return true;
@@ -1057,10 +1284,8 @@ export class Flight {
     const P = this.P;
     const ambP = P.ambientDeg * D2R * Math.sin(this._t * 0.7);
     const ambR = P.ambientDeg * D2R * Math.sin(this._t * 0.53);
-    const stuntPitch = this._stuntAxis === "pitch" ? this._stuntAngle : 0;
-    const stuntRoll = this._stuntAxis === "roll" ? this._stuntAngle : 0;
-    const dynPitch = this.vehicleType === "balloon" ? 0 : this.pitch + ambP + stuntPitch;
-    const dynRoll = this.vehicleType === "balloon" ? 0 : this.roll + ambR + stuntRoll;
+    const dynPitch = this.vehicleType === "balloon" ? 0 : this.pitch + ambP;
+    const dynRoll = this.vehicleType === "balloon" ? 0 : this.roll + ambR;
     const hpr = new C.HeadingPitchRoll(
       this.heading + P.modelYawDeg * D2R,
       dynPitch + P.modelPitchDeg * D2R,
@@ -1083,17 +1308,36 @@ export class Flight {
     const C = window.Cesium;
     if (!this.position) return;
     const P = this.P;
+    if (this.cameraView === "cockpit") return this._updateCockpit(dt);
+    if (this.plane && this.plane.show !== true) this.plane.show = true;
     if (this._camHeading === undefined) this._camHeading = this.heading;
-    const a = dt > 0 ? 1 - Math.exp(-dt / P.camTau) : 1;
+    // Loop-stable heading follow: as the nose approaches vertical the derived
+    // heading flips convention, so the follow-rate fades to zero there. The
+    // camera holds its bearing while the plane loops over it, then resumes.
+    // The camera NEVER writes back to the aircraft's attitude.
+    const level = clamp((Math.cos(this.pitch) - 0.3) / 0.35, 0, 1);
+    const a = dt > 0 ? (1 - Math.exp(-dt / P.camTau)) * level : 1;
     this._camHeading += shortAngle(this._camHeading, this.heading) * a;
 
+    // Free-look drag offsets ease back to centre once released.
+    if (!this._lookActive && (this._lookYaw || this._lookPitch)) {
+      const decay = dt > 0 ? Math.exp(-dt / 0.35) : 0;
+      this._lookYaw *= decay;
+      this._lookPitch *= decay;
+      if (Math.abs(this._lookYaw) < 0.002) this._lookYaw = 0;
+      if (Math.abs(this._lookPitch) < 0.002) this._lookPitch = 0;
+    }
+
     const enu = C.Transforms.eastNorthUpToFixedFrame(this.position, C.Ellipsoid.WGS84, new C.Matrix4());
-    // Offset in ENU (east, north, up): behind the heading and above.
-    const cameraAngle = this._camHeading + (this.cameraView === "profile" ? .7 : 0);
+    // Offset in ENU (east, north, up): behind the heading and above, orbited
+    // by the free-look offsets (the camera keeps aiming at the plane).
+    const cameraAngle = this._camHeading + (this.cameraView === "profile" ? .7 : 0) + this._lookYaw;
+    const lookUp = clamp(this._lookPitch, -1.15, 1.15);
+    const back = P.camBack * Math.cos(lookUp);
     const offset = new C.Cartesian3(
-      -Math.sin(cameraAngle) * P.camBack,
-      -Math.cos(cameraAngle) * P.camBack,
-      P.camUp + (this.airMotion && this.phase === "airborne" ? Math.sin((this._elapsed || 0) * .8) * .12 : 0)
+      -Math.sin(cameraAngle) * back,
+      -Math.cos(cameraAngle) * back,
+      P.camUp + Math.sin(lookUp) * P.camBack + (this.airMotion && this.phase === "airborne" ? Math.sin((this._elapsed || 0) * .8) * .12 : 0)
     );
     this.viewer.camera.lookAtTransform(enu, offset);
 
@@ -1105,6 +1349,38 @@ export class Flight {
     const targetFov = (60 + 16 * sf) * D2R;
     if (this._fov === undefined) this._fov = targetFov;
     this._fov += (targetFov - this._fov) * (dt > 0 ? 1 - Math.exp(-dt / 0.6) : 1);
+    if (this.viewer.camera.frustum.fov !== undefined) this.viewer.camera.frustum.fov = this._fov;
+  }
+
+  // Cockpit view: locked to the airframe, rolls and loops with it — flying
+  // inverted looks inverted. Free-look turns the pilot's head.
+  _updateCockpit(dt) {
+    const C = window.Cesium;
+    if (this.plane && this.plane.show !== false) this.plane.show = false; // don't render the hull around the pilot's head
+    const b = this._basisFor(this.heading, this.pitch, this.roll);
+    if (!this._lookActive && (this._lookYaw || this._lookPitch)) {
+      const decay = dt > 0 ? Math.exp(-dt / 0.35) : 0;
+      this._lookYaw *= decay;
+      this._lookPitch *= decay;
+    }
+    const pos = C.Cartesian3.clone(this.position, new C.Cartesian3());
+    addScaled(pos, b.F, 2.6);
+    addScaled(pos, b.U, 1.05);
+    let dir = C.Cartesian3.clone(b.F, new C.Cartesian3());
+    let up = C.Cartesian3.clone(b.U, new C.Cartesian3());
+    if (this._lookYaw || this._lookPitch) {
+      const R = norm(cross(b.F, b.U));
+      const qy = C.Quaternion.fromAxisAngle(b.U, -this._lookYaw, new C.Quaternion());
+      const qp = C.Quaternion.fromAxisAngle(R, this._lookPitch, new C.Quaternion());
+      const m = C.Matrix3.fromQuaternion(C.Quaternion.multiply(qy, qp, qy), new C.Matrix3());
+      C.Matrix3.multiplyByVector(m, dir, dir);
+      C.Matrix3.multiplyByVector(m, up, up);
+    }
+    this.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);
+    this.viewer.camera.setView({ destination: pos, orientation: { direction: dir, up } });
+    const targetFov = 72 * D2R;
+    if (this._fov === undefined) this._fov = targetFov;
+    this._fov += (targetFov - this._fov) * (dt > 0 ? 1 - Math.exp(-dt / 0.4) : 1);
     if (this.viewer.camera.frustum.fov !== undefined) this.viewer.camera.frustum.fov = this._fov;
   }
 
@@ -1141,6 +1417,12 @@ export class Flight {
     this._pitchVel = 0;
     this._rollVel = 0;
     this._velDir = null;
+    this._axF = null;
+    this._axU = null;
+    this._upRef = null;
+    this._stuntRemaining = 0;
+    this._stuntAxis = "";
+    this._recoverUntil = 0;
     this.speed = this.P.cruiseKmh / 3.6;
     this.throttle = 0.5;
     this.agl = 9999;
@@ -1178,6 +1460,7 @@ export class Flight {
       warning: this.warning,
       crashes: this.crashes,
       mode: this.mode,
+      assist: this.assist,
       vehicleType: this.vehicleType,
       flaps: this.flaps,
       aoaDeg: this._aoa / D2R,

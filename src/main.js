@@ -10,6 +10,7 @@ import { EngineAudio } from "./audio.js?v=fleet7";
 import { HUD } from "./hud.js?v=fleet7";
 import { buildTuner } from "./tuner.js?v=fleet7";
 import { Radio } from "./radio.js?v=radio8";
+import { RingRun } from "./rings.js?v=1";
 
 // ---- Diagnostic logger ----
 function dlog(msg, isErr = false) {
@@ -59,6 +60,10 @@ const app = {
   vehicle: VEHICLES[0],
   quality: "balanced", // default
   destination: PRESETS[0],
+  assist: "beginner", // "beginner" | "aerobatic"
+  sensitivity: 1,
+  activity: "free", // "free" | "rings"
+  lastTakeoff: null, // {lat,lng,label} for the retry button
 };
 
 const QUALITY = [
@@ -108,6 +113,7 @@ function initApp() {
   });
   renderQuality();
   renderPresets();
+  setupFlightSettings();
 
   setupGeolocation();
   setupResult();
@@ -120,6 +126,7 @@ function initApp() {
   document.getElementById("btn-loading-cancel").addEventListener("click", cancelLoading);
 
   app.flight = new Flight("cesiumContainer");
+  app.ringRun = new RingRun(app.flight, toast);
   radio = new Radio(toast);
   journey = new Journey(app, PRESETS, toast, entry => {
     if (entry.world && entry.world !== "google") return;
@@ -145,9 +152,18 @@ function initApp() {
     onToggleMode: () => app.flight.toggleMode(),
     onFlip: (kind) => app.flight.startFlip(kind),
     onCamera: changeCamera,
+    onRecover: () => app.flight.recover(),
+    onAssist: toggleAssist,
   });
 
   document.getElementById("btn-camera").addEventListener("click", changeCamera);
+  document.getElementById("btn-level").addEventListener("click", () => app.flight.recover());
+  document.getElementById("btn-assist").addEventListener("click", toggleAssist);
+  document.getElementById("btn-retry").addEventListener("click", () => {
+    const t = app.lastTakeoff;
+    if (t) takeOff(t.lat, t.lng, t.label);
+  });
+  setupFreeLook();
 
   app.tuner = buildTuner(app.flight.P);
   app.tuner.setDefaults(DEFAULT_PARAMS);
@@ -201,6 +217,88 @@ function renderQuality() {
     });
     wrap.appendChild(btn);
   }
+}
+
+// ---- Flight settings: assist mode, control sensitivity, activity ----
+function setupFlightSettings() {
+  try {
+    app.assist = localStorage.getItem("open-skies.assist") === "aerobatic" ? "aerobatic" : "beginner";
+    const s = parseFloat(localStorage.getItem("open-skies.sensitivity"));
+    if (Number.isFinite(s)) app.sensitivity = Math.max(0.4, Math.min(1.6, s));
+  } catch {}
+  const beginner = document.getElementById("assist-beginner");
+  const aerobatic = document.getElementById("assist-aerobatic");
+  const paint = () => {
+    beginner.classList.toggle("active", app.assist === "beginner");
+    beginner.setAttribute("aria-pressed", String(app.assist === "beginner"));
+    aerobatic.classList.toggle("active", app.assist === "aerobatic");
+    aerobatic.setAttribute("aria-pressed", String(app.assist === "aerobatic"));
+    const chip = document.getElementById("btn-assist");
+    if (chip) chip.textContent = app.assist === "aerobatic" ? "🎢" : "🛟";
+  };
+  app._paintAssist = paint;
+  const setAssist = (mode) => {
+    app.assist = mode;
+    try { localStorage.setItem("open-skies.assist", mode); } catch {}
+    if (app.flight) app.flight.setAssist(mode);
+    paint();
+  };
+  beginner.addEventListener("click", () => setAssist("beginner"));
+  aerobatic.addEventListener("click", () => setAssist("aerobatic"));
+  paint();
+
+  const sens = document.getElementById("sensitivity");
+  sens.value = String(app.sensitivity);
+  sens.addEventListener("input", () => {
+    app.sensitivity = parseFloat(sens.value) || 1;
+    try { localStorage.setItem("open-skies.sensitivity", sens.value); } catch {}
+    if (app.flight) app.flight.setSensitivity(app.sensitivity);
+  });
+
+  const free = document.getElementById("activity-free");
+  const rings = document.getElementById("activity-rings");
+  const paintActivity = () => {
+    free.classList.toggle("active", app.activity === "free");
+    free.setAttribute("aria-pressed", String(app.activity === "free"));
+    rings.classList.toggle("active", app.activity === "rings");
+    rings.setAttribute("aria-pressed", String(app.activity === "rings"));
+  };
+  free.addEventListener("click", () => { app.activity = "free"; paintActivity(); });
+  rings.addEventListener("click", () => { app.activity = "rings"; paintActivity(); });
+  paintActivity();
+}
+
+function toggleAssist() {
+  const mode = app.assist === "aerobatic" ? "beginner" : "aerobatic";
+  app.assist = mode;
+  try { localStorage.setItem("open-skies.assist", mode); } catch {}
+  if (app.flight) app.flight.setAssist(mode);
+  if (app._paintAssist) app._paintAssist();
+  toast(mode === "aerobatic" ? "Aerobatic: full loops, rolls and inverted flight. L levels you out." : "Beginner: auto-level assists are back on.");
+}
+
+// Drag the 3D view with a mouse to look around; the camera eases back when
+// released. Touch keeps its thumbs on the stick and lever, so mouse-only.
+function setupFreeLook() {
+  const el = document.getElementById("cesiumContainer");
+  let looking = false, lastX = 0, lastY = 0;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || !app.flying) return;
+    looking = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!looking || !app.flight) return;
+    app.flight.lookBy((e.clientX - lastX) * 0.006, (e.clientY - lastY) * 0.005);
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  const end = () => { looking = false; if (app.flight) app.flight.lookRelease(); };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+  window.addEventListener("blur", end);
 }
 
 function renderPresets() {
@@ -514,6 +612,8 @@ async function takeOff(lat, lng, label) {
   app.loading = true;
   app.cancelled = false;
   app.flying = false;
+  app.lastTakeoff = { lat, lng, label };
+  document.getElementById("btn-retry").hidden = true;
   if (app.flight) app.flight.locationLabel = label; // used to caption shared screenshots
   // Unlock/resume audio NOW, inside the click gesture — before the tile-load
   // await — or Safari leaves the context suspended and there's no engine sound.
@@ -534,13 +634,16 @@ async function takeOff(lat, lng, label) {
 
     app.flight.setQuality(app.quality);
     app.flight.setVehicle(app.vehicle);
+    app.flight.setAssist(app.assist);
+    app.flight.setSensitivity(app.sensitivity);
     await app.flight.spawn(lat, lng, (frac, lbl) => {
       if (!app.cancelled) setLoading(frac, lbl);
     });
     if (app.cancelled) return;
 
     showLoading(false);
-    document.getElementById("btn-camera").textContent = app.flight.cameraView === "profile" ? "Profile" : "Chase";
+    const camLabels = { chase: "Chase", cockpit: "Cockpit", profile: "Profile" };
+    document.getElementById("btn-camera").textContent = camLabels[app.flight.cameraView] || "Chase";
     beginFlight();
   } catch (err) {
     console.error(err);
@@ -549,7 +652,8 @@ async function takeOff(lat, lng, label) {
     showScreen("landing");
     app.audio.suspend();
     app.flight.dispose();
-    setLandingStatus("Couldn’t load scenery at that destination. Try another place or retry.", true);
+    setLandingStatus("Couldn’t load scenery at that destination. You can retry, or pick another place.", true);
+    document.getElementById("btn-retry").hidden = false;
   } finally {
     app.loading = false;
     if (app.cancelled) app.flight.dispose();
@@ -572,10 +676,11 @@ function beginFlight() {
   const maxKmh = (app.flight.P && app.flight.P.maxSpeedKmh) || 520;
   let lastWarn = "";
   let lastCrashes = app.flight.crashes || 0;
+  if (app.activity === "rings") app.ringRun.start();
   app.flight.onState = (s) => {
     app.hud.update(s);
     journey.update(s);
-    document.getElementById("course-status").textContent = "";
+    document.getElementById("course-status").textContent = app.ringRun.update();
     app.audio.setThrottle(s.throttle);
     app.audio.setSpeed(Math.max(0, Math.min(1, (s.speedKmh / 3.6 - 11) / (97 - 11))));
     // Speed streaks ramp in above ~60% of top speed, max out near the redline.
@@ -620,6 +725,7 @@ document.addEventListener("visibilitychange", () => {
 function dismount() {
   const wasFlying = app.flying;
   const flight = app.flight ? app.flight.getFlight() : null;
+  if (app.ringRun) app.ringRun.clear();
   if (wasFlying) journey.finish(flight);
   app.flying = false;
   releaseWakeLock();
@@ -959,5 +1065,6 @@ function selectDestination(destination) {
 }
 function changeCamera() {
   app.flight.toggleCamera();
-  document.getElementById("btn-camera").textContent = app.flight.cameraView === "profile" ? "Profile" : "Chase";
+  const labels = { chase: "Chase", cockpit: "Cockpit", profile: "Profile" };
+  document.getElementById("btn-camera").textContent = labels[app.flight.cameraView] || "Chase";
 }

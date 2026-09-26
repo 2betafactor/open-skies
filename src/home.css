@@ -98,3 +98,12 @@
   .launch-summary { margin-top:14px; }
   #screen-landing .primary { padding:12px; }
 }
+
+/* Flight settings rows (assist / sensitivity / activity) */
+#flight-settings, #activity-row { flex-wrap:wrap; }
+.sens-label { display:inline-flex; align-items:center; gap:8px; font-size:.72rem; letter-spacing:1px; text-transform:uppercase; color:#51746d; margin-left:8px; }
+.sens-label input[type=range] { width:110px; accent-color:#51746d; }
+#btn-retry { margin:0 0 12px; }
+.controls-help { margin-top:14px; font-size:.85rem; color:#233940; }
+.controls-help summary { cursor:pointer; color:#51746d; font-weight:600; }
+.controls-help ul { margin:8px 0 0; padding-left:18px; line-height:1.7; }

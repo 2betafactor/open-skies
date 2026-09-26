@@ -21,11 +21,37 @@
           <fieldset class="aircraft-picker" aria-label="Choose aircraft"><div id="aircraft-options"></div></fieldset>
           <div id="maps-panel"><label for="place-input" class="field-label">Search a city or landmark</label><div class="search-row"><input id="place-input" placeholder="Where do you want to go?" autocomplete="off" /></div><button id="btn-geo" class="location-button" title="Use my location" aria-label="Use my location">◎ Use my location</button><div class="presets-header">Or choose a destination</div><div id="presets" class="presets"></div></div>
           <p id="landing-status" role="status" class="landing-status"></p>
+          <button id="btn-retry" class="ghost small" hidden>↻ Try that flight again</button>
+          <div id="flight-settings" class="quality-row" aria-label="Flight settings">
+            <span class="quality-cap">Flying</span>
+            <button id="assist-beginner" class="quality-btn" aria-pressed="true">Beginner</button>
+            <button id="assist-aerobatic" class="quality-btn" aria-pressed="false">Aerobatic</button>
+            <label class="sens-label" for="sensitivity">Controls
+              <input id="sensitivity" type="range" min="0.4" max="1.6" step="0.1" value="1" />
+            </label>
+          </div>
+          <div id="activity-row" class="quality-row" aria-label="Activity">
+            <span class="quality-cap">Activity</span>
+            <button id="activity-free" class="quality-btn" aria-pressed="true">Free flight</button>
+            <button id="activity-rings" class="quality-btn" aria-pressed="false">Ring run</button>
+          </div>
           <div id="launch-panel"><div class="launch-summary"><span id="selected-route">Manhattan</span></div><button id="btn-takeoff" class="primary">Take off →</button></div>
+          <details id="controls-help" class="controls-help">
+            <summary>Controls</summary>
+            <ul>
+              <li><b>W/S or ↑/↓</b> pitch · <b>A/D or ←/→</b> roll · <b>Q/E</b> rudder</li>
+              <li><b>Shift / Ctrl</b> (or <b>+/−</b>) throttle · drag the on-screen lever on touch</li>
+              <li><b>Space</b> hold level · <b>L</b> recover to level flight · <b>B</b> Beginner/Aerobatic assist</li>
+              <li><b>R</b> loop · <b>T</b> barrel roll (Aerobatic flies them for real — try inverted!)</li>
+              <li><b>C</b> camera: chase → cockpit → profile · drag the view with the mouse to look around</li>
+              <li><b>F</b> flaps · <b>V</b> sim physics · <b>H</b> hide HUD · <b>P</b> photo · <b>Esc</b> finish</li>
+            </ul>
+          </details>
           <section class="radio-panel" aria-labelledby="radio-title"><div class="radio-heading"><strong id="radio-title">Nightride FM</strong><span id="radio-location">EQ stream</span></div><p id="radio-status">Synthwave radio starts with takeoff.</p></section>
           <div id="quality" class="quality-row"></div>
         </section>
       </main>
+      <footer class="home-footer"><span>Free flight. No finish line.</span><button id="btn-journal" class="text-button">Logbook &amp; journal</button><details><summary>Flight leaderboard</summary><div id="landing-board" class="board"></div></details></footer>
     </div>
   </section>
 
@@ -68,6 +94,8 @@
         <div class="hud-label">ALTITUDE</div>
       </div>
       <div class="hud-buttons">
+        <button id="btn-level" class="hud-btn" title="Recover: level the aircraft (L)">LEVEL</button>
+        <button id="btn-assist" class="hud-btn" title="Assist: Beginner / Aerobatic (B)">🛟</button>
         <button id="btn-record" class="hud-btn" title="Record a 10s clip to share">🎬</button>
         <button id="btn-share" class="hud-btn" title="Share this view">📤</button>
         <button id="btn-camera" class="hud-btn" title="Change camera view (C)">View</button>

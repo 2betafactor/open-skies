@@ -54,6 +54,7 @@ export class HUD {
 
     if (this.el.vspeed) {
       const parts = [];
+      if (s.assist === "aerobatic") parts.push("AEROBATIC");
       if (s.vehicleType === "spaceship") parts.push("ION DRIVE · ASSISTED");
       if (s.homeKm != null) parts.push("📍 " + s.homeKm.toFixed(1) + " km");
       const v = Math.round(s.vspeed || 0);

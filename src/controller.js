@@ -13,6 +13,8 @@ export class Controller {
     this.onFlaps = opts.onFlaps || (() => {});
     this.onToggleMode = opts.onToggleMode || (() => {});
     this.onFlip = opts.onFlip || (() => {});
+    this.onRecover = opts.onRecover || (() => {});
+    this.onAssist = opts.onAssist || (() => {});
     this.keys = new Set();
     this._bound = false;
     this._kd = (e) => this._down(e);
@@ -49,6 +51,8 @@ export class Controller {
     if (e.code === "KeyV" && !e.repeat) this.onToggleMode();
     if (e.code === "KeyR" && !e.repeat) this.onFlip("backflip");
     if (e.code === "KeyT" && !e.repeat) this.onFlip("barrel");
+    if (e.code === "KeyL" && !e.repeat) this.onRecover();
+    if (e.code === "KeyB" && !e.repeat) this.onAssist();
     if (NAV_CODES.has(e.code)) e.preventDefault();
     this.keys.add(e.code);
     this._apply();
