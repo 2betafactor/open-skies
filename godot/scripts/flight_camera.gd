@@ -14,7 +14,7 @@ var _smooth_basis := Basis()
 var _pos_vel := Vector3.ZERO
 var _flyby_pos := Vector3.ZERO
 var _flyby_timer := 0.0
-var base_fov := 62.0
+var base_fov := 58.0
 var _shake := 0.0
 
 
@@ -77,7 +77,7 @@ func _process(delta: float) -> void:
 		if _orbit_release < 0.0:
 			orbit = orbit.lerp(Vector2.ZERO, 1.0 - exp(-delta * 3.0))
 	var speed := target.airspeed
-	var want_fov: float = base_fov + clamp((speed - 120.0) / 220.0, 0.0, 1.0) * 14.0
+	var want_fov: float = base_fov + clamp((speed - 140.0) / 220.0, 0.0, 1.0) * 10.0 + (6.0 if target.boost > 0.5 else 0.0)
 	if mode == Mode.COCKPIT:
 		want_fov += 8.0
 	fov = lerp(fov, want_fov, 1.0 - exp(-delta * 2.0))

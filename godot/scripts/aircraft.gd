@@ -13,15 +13,17 @@ class_name Aircraft
 ##   NORMAL — rate command, attitude hold, auto-coordination, AoA limiter
 ##   SIM    — stick drives the surfaces directly; stability is all aerodynamic
 
-enum Assist { EASY, NORMAL, SIM }
-const ASSIST_NAMES := ["Easy", "Normal", "Sim"]
+enum Assist { ARCADE, NORMAL, SIM }
+const ASSIST_NAMES := ["Arcade", "Pro", "Sim"]
 
 const G := 9.80665
 const RHO0 := 1.225
 
-var spec: Dictionary = Vehicles.get_spec("aerion")
-var vehicle_id := "aerion"
-var assist := Assist.NORMAL
+var spec: Dictionary = Vehicles.get_spec("typhoon")
+var vehicle_id := "typhoon"
+var assist := Assist.ARCADE
+var boost := 0.0          # 0..1 afterburner/boost amount (arcade)
+var boost_energy := 1.0   # 0..1, drains while boosting
 
 # ---- state (local frame) ----
 var velocity := Vector3.ZERO
@@ -60,6 +62,9 @@ var _ground_ray_timer := 0.0
 var model: Node3D
 var _surface_nodes: Dictionary = {}
 var _surface_rest: Dictionary = {}
+var _wing_nodes: Dictionary = {}
+var _wing_rest: Dictionary = {}
+var _sweep := 0.0
 var tiles: GoogleTiles
 
 signal crashed
@@ -85,7 +90,7 @@ func set_vehicle(id: String) -> void:
 	var holder := Node3D.new()
 	holder.name = "Model"
 	# Models are authored with +Z forward; Godot flies along -Z.
-	holder.rotation.y = PI
+	holder.rotation.y = PI + deg_to_rad(float(spec.get("model_yaw", 0.0)))
 	holder.scale = Vector3.ONE * float(spec.model_scale)
 	var inst := packed.instantiate()
 	holder.add_child(inst)
@@ -96,6 +101,61 @@ func set_vehicle(id: String) -> void:
 		if found is Node3D:
 			_surface_nodes[n] = found
 			_surface_rest[n] = (found as Node3D).transform
+	_wing_nodes.clear()
+	if spec.has("wing_sweep"):
+		for side in ["left", "right"]:
+			var w := inst.find_child(spec.wing_sweep[side], true, false)
+			if w is Node3D:
+				_wing_nodes[side] = w
+				_wing_rest[side] = (w as Node3D).transform
+	_apply_paint(inst)
+
+
+## Re-skin the imported materials: the source packs ship flat colours named
+## gray / dark_gray / black / glass. Give them a metallic paint look, the
+## canopy a dark glossy tint, and let shadows fall on the model.
+func _apply_paint(root: Node) -> void:
+	var paint: Dictionary = spec.get("paint", {})
+	var stack: Array = [root]
+	while stack.size() > 0:
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if not (n is MeshInstance3D):
+			continue
+		var mi := n as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if mi.mesh == null:
+			continue
+		for si in range(mi.mesh.get_surface_count()):
+			var src := mi.mesh.surface_get_material(si)
+			var name := (src.resource_name if src else "").to_lower()
+			var m := StandardMaterial3D.new()
+			var base: Color = (src as BaseMaterial3D).albedo_color if src is BaseMaterial3D else Color(0.6, 0.6, 0.6)
+			if src is BaseMaterial3D and (src as BaseMaterial3D).albedo_texture != null:
+				m.albedo_texture = (src as BaseMaterial3D).albedo_texture
+			m.metallic = 0.55
+			m.roughness = 0.4
+			m.metallic_specular = 0.6
+			if "glass" in name or "canopy" in name:
+				m.albedo_color = Color(0.08, 0.12, 0.16)
+				m.metallic = 0.9
+				m.roughness = 0.08
+			elif "black" in name:
+				m.albedo_color = Color(0.06, 0.06, 0.07)
+				m.metallic = 0.3
+				m.roughness = 0.6
+			elif "dark" in name:
+				m.albedo_color = paint.get("dark", base.darkened(0.3))
+			elif "red" in name or "accent" in name:
+				m.albedo_color = paint.get("accent", base)
+			elif "gray" in name or "grey" in name or "tan" in name or "lt_" in name or "body" in name:
+				m.albedo_color = paint.get("body", base)
+			else:
+				m.albedo_color = base
+				m.metallic = 0.35
+				m.roughness = 0.5
+			mi.set_surface_override_material(si, m)
 
 
 func set_model_visible(v: bool) -> void:
@@ -123,6 +183,8 @@ func spawn(lat: float, lon: float, alt_m: float, heading_deg: float, speed: floa
 	distance_m = 0.0
 	flight_time = 0.0
 	max_g = 1.0
+	boost = 0.0
+	boost_energy = 1.0
 	set_model_visible(true)
 
 
@@ -211,7 +273,7 @@ func _step(dt: float) -> void:
 	surfaces = Vector3(de, da, dr)
 
 	# Lift / drag coefficients with a soft stall.
-	var a_s := deg_to_rad(float(spec.cl_max_alpha))
+	var a_s := deg_to_rad(float(spec.cl_max_alpha) + (8.0 if assist == Assist.ARCADE else 0.0))
 	var cl_lin: float = spec.cl0 + spec.cla * alpha
 	var cl: float
 	var over: float = abs(alpha) - a_s
@@ -240,7 +302,7 @@ func _step(dt: float) -> void:
 	var drag := q_dyn * S * cd
 	var side := q_dyn * S * float(spec.cyb) * beta
 	var thrust_max: float = spec.thrust * (0.35 + 0.65 * rho / RHO0)
-	var thrust := throttle * thrust_max
+	var thrust := throttle * thrust_max * (1.0 + 0.6 * boost)
 	var F := -basis.z * thrust + lift_dir * lift - vhat * drag + basis.x * side
 	var accel := F / m + Vector3(0, -G, 0)
 	g_load = (F / m).dot(basis.y) / G
@@ -298,7 +360,18 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 	var roll_in := Controls.roll if input_enabled else 0.0
 	var yaw_in := Controls.yaw if input_enabled else 0.0
 	if input_enabled:
-		throttle_cmd = clamp(throttle_cmd + Controls.throttle_delta * dt * 0.5, 0.0, 1.0)
+		if assist == Assist.ARCADE:
+			# Arcade: engine runs itself. Hold boost for afterburner, hold
+			# brake to slow down; the plane otherwise cruises.
+			var want_boost: bool = Controls.throttle_delta > 0.5 and boost_energy > 0.02
+			boost = move_toward(boost, 1.0 if want_boost else 0.0, dt * 3.0)
+			boost_energy = clamp(boost_energy + (-0.22 if want_boost else 0.12) * dt, 0.0, 1.0)
+			var cruise: float = 0.45 if not Controls.brake else 0.12
+			throttle_cmd = clamp(cruise + boost * 0.38, 0.0, 1.0)
+		else:
+			boost = move_toward(boost, 0.0, dt * 3.0)
+			boost_energy = min(boost_energy + 0.12 * dt, 1.0)
+			throttle_cmd = clamp(throttle_cmd + Controls.throttle_delta * dt * 0.5, 0.0, 1.0)
 
 	var S: float = spec.wing_area
 	var I: Vector3 = spec.inertia
@@ -346,11 +419,15 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 			if abs(bank) < deg_to_rad(2.0) and abs(pitch) < deg_to_rad(2.0):
 				_end_maneuver()
 
-	# Easy mode: ease wings level when the stick is centred.
-	if assist == Assist.EASY and _maneuver == "" and abs(roll_in) < 0.05:
-		target_p += -bank * 1.0
-	# Easy mode: terrain floor guard.
-	if assist == Assist.EASY and _maneuver == "" and not is_nan(altitude_agl):
+	# Arcade: wings level themselves when the stick is centred, and the nose
+	# drifts back to the horizon — point and go.
+	if assist == Assist.ARCADE and _maneuver == "":
+		if abs(roll_in) < 0.05:
+			target_p += -bank * 1.6
+		if abs(pitch_in) < 0.05 and abs(bank) < deg_to_rad(60.0):
+			target_q += -pitch * 0.9
+	# Arcade: terrain floor guard.
+	if assist == Assist.ARCADE and _maneuver == "" and not is_nan(altitude_agl):
 		var sink := -velocity.y
 		var ttc: float = altitude_agl / max(sink, 0.1)
 		if sink > 0.0 and ttc < 6.0:
@@ -366,11 +443,11 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 		target_q += (G / V) * tan(bank_c) * sin(bank_c) * fade
 
 	# G limiter (approximate: g ~ V*q/G). Stunts get extra headroom.
-	var g_lim: float = spec.get("stunt_g", 7.0) if _maneuver != "" else spec.get("g_limit", 5.0)
+	var g_lim: float = spec.get("stunt_g", 7.0) if (_maneuver != "" or assist == Assist.ARCADE) else spec.get("g_limit", 5.0)
 	target_q = clamp(target_q, -(0.5 * g_lim + 1.0) * G / V, (g_lim + 1.0) * G / V)
 
 	# AoA limiter: never command past the stall.
-	var a_lim := deg_to_rad(float(spec.cl_max_alpha) - 1.5)
+	var a_lim := deg_to_rad(float(spec.cl_max_alpha) - 1.5 + (8.0 if assist == Assist.ARCADE else 0.0))
 	var margin := a_lim - alpha
 	if margin < deg_to_rad(5.0):
 		target_q = min(target_q, margin * 5.0)
@@ -459,6 +536,13 @@ func _crash() -> void:
 
 
 func _animate_surfaces() -> void:
+	if _wing_nodes.size() == 2:
+		# Swing wings: spread at low speed, swept back when fast.
+		var want: float = clamp((airspeed - 120.0) / 160.0, 0.0, 1.0)
+		_sweep = move_toward(_sweep, want, 1.0 / 60.0 * 0.25)
+		var ang := deg_to_rad(float(spec.wing_sweep.max_deg)) * _sweep
+		(_wing_nodes["left"] as Node3D).transform = _wing_rest["left"] * Transform3D(Basis(Vector3.UP, -ang), Vector3.ZERO)
+		(_wing_nodes["right"] as Node3D).transform = _wing_rest["right"] * Transform3D(Basis(Vector3.UP, ang), Vector3.ZERO)
 	for n: String in _surface_nodes.keys():
 		var cfg: Array = spec.surfaces[n]
 		var kind: int = cfg[0]
@@ -503,4 +587,6 @@ func telemetry() -> Dictionary:
 		"vehicle": spec.name,
 		"maneuver": _maneuver,
 		"vs": velocity.y,
+		"boost": boost,
+		"boost_energy": boost_energy,
 	}

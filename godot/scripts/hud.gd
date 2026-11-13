@@ -7,6 +7,7 @@ var aircraft: Aircraft
 var tiles: GoogleTiles
 var camera: FlightCamera
 var radio: Radio
+var rings: RingCourse
 var compact := false
 var place_name := ""
 var hint := ""
@@ -17,6 +18,7 @@ var _draw: Control
 var _font: Font
 var _mono: Font
 var fps_visible := true
+var mobile := false
 
 const COL_HUD := Color(0.72, 1.0, 0.82, 0.95)
 const COL_DIM := Color(0.72, 1.0, 0.82, 0.45)
@@ -77,8 +79,8 @@ func _on_draw() -> void:
 		agl_text = "%d m AGL" % int(tm.agl)
 	_draw_box(c, Vector2(cx + size.x * 0.22, cy - 30.0), Vector2(110.0, 60.0), "%d" % int(round(tm.altitude)), alt_label, agl_text)
 
-	# Throttle + G + assist (bottom centre).
-	var y := size.y - 58.0
+	# Throttle + G + assist (bottom centre; above the touch buttons on phones).
+	var y := size.y - (122.0 if mobile else 58.0)
 	var tw := 180.0
 	var tx := cx - tw * 0.5
 	c.draw_rect(Rect2(tx, y, tw, 10.0), COL_DIM, false, 1.0)
@@ -90,6 +92,21 @@ func _on_draw() -> void:
 	c.draw_string(_font, Vector2(tx + tw + 12.0, y + 10.0), "%s · %s" % [tm.assist, camera.MODE_NAMES[camera.mode] if camera else ""], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, COL_DIM)
 	if tm.maneuver != "":
 		c.draw_string(_font, Vector2(cx - 60.0, y - 12.0), {"loop": "LOOP", "roll": "BARREL ROLL", "level": "RECOVERING"}.get(tm.maneuver, ""), HORIZONTAL_ALIGNMENT_CENTER, 120, 15, COL_HUD)
+
+	# Score and boost (arcade).
+	if rings != null and rings.active:
+		c.draw_string(_font, Vector2(cx - 150.0, 96.0), "SCORE %d" % rings.score, HORIZONTAL_ALIGNMENT_CENTER, 300.0, 22, COL_HUD)
+		if rings.combo > 1:
+			c.draw_string(_font, Vector2(cx - 150.0, 116.0), "x%d combo" % rings.combo, HORIZONTAL_ALIGNMENT_CENTER, 300.0, 14, COL_DIM)
+		_draw_ring_pointer(c, Vector2(cx, cy), size)
+	if tm.assist == "Arcade":
+		var bw := 180.0
+		var bx := cx - bw * 0.5
+		var by := size.y - (100.0 if mobile else 36.0)
+		c.draw_rect(Rect2(bx, by, bw, 6.0), COL_DIM, false, 1.0)
+		var e: float = tm.boost_energy
+		c.draw_rect(Rect2(bx + 1.0, by + 1.0, (bw - 2.0) * e, 4.0), Color(1.0, 0.7, 0.3) if tm.boost > 0.1 else COL_HUD)
+		c.draw_string(_font, Vector2(bx - 60.0, by + 7.0), "BOOST", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, COL_DIM)
 
 	# Warnings.
 	if tm.stall and aircraft.airspeed > 20.0:
@@ -120,8 +137,9 @@ func _on_draw() -> void:
 	if hint != "":
 		var hw: float = min(640.0, size.x - 32.0)
 		var lines := _font.get_multiline_string_size(hint, HORIZONTAL_ALIGNMENT_CENTER, hw - 16.0, 13).y
-		c.draw_rect(Rect2(cx - hw * 0.5, size.y - 108.0 - lines, hw, lines + 12.0), COL_PANEL)
-		c.draw_multiline_string(_font, Vector2(cx - hw * 0.5 + 8.0, size.y - 96.0 - lines + 13.0), hint, HORIZONTAL_ALIGNMENT_CENTER, hw - 16.0, 13, -1, COL_HUD)
+		var hy: float = size.y - (170.0 if mobile else 108.0)
+		c.draw_rect(Rect2(cx - hw * 0.5, hy - lines, hw, lines + 12.0), COL_PANEL)
+		c.draw_multiline_string(_font, Vector2(cx - hw * 0.5 + 8.0, hy + 12.0 - lines + 13.0), hint, HORIZONTAL_ALIGNMENT_CENTER, hw - 16.0, 13, -1, COL_HUD)
 	if _toast != "":
 		c.draw_string(_font, Vector2(cx - 300.0, cy - 140.0), _toast, HORIZONTAL_ALIGNMENT_CENTER, 600, 20, COL_HUD)
 
@@ -130,6 +148,29 @@ func _on_draw() -> void:
 		var attr := tiles.attribution()
 		if attr != "":
 			c.draw_string(_font, Vector2(size.x - 16.0 - 520.0, size.y - 10.0), "Data: " + attr, HORIZONTAL_ALIGNMENT_RIGHT, 520, 11, Color(1, 1, 1, 0.75))
+
+
+## Arrow at the screen edge pointing at the next ring when it is off-screen.
+func _draw_ring_pointer(c: Control, centre: Vector2, size: Vector2) -> void:
+	if camera == null or rings.rings.is_empty():
+		return
+	var target: Vector3 = rings.next_ring_position()
+	var dist: float = camera.global_position.distance_to(target)
+	if not camera.is_position_behind(target):
+		var sp := camera.unproject_position(target)
+		if sp.x > 0.0 and sp.x < size.x and sp.y > 0.0 and sp.y < size.y:
+			c.draw_string(_font, sp + Vector2(-40.0, -12.0), "%d m" % int(dist), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 12, COL_DIM)
+			return
+	# Off-screen: direction from the camera's view.
+	var local: Vector3 = camera.global_transform.affine_inverse() * target
+	var dir := Vector2(local.x, -local.y)
+	if dir.length() < 1e-3:
+		dir = Vector2(0.0, -1.0)
+	dir = dir.normalized()
+	var p: Vector2 = centre + dir * min(size.x, size.y) * 0.38
+	var tip := p + dir * 14.0
+	var side := Vector2(-dir.y, dir.x) * 8.0
+	c.draw_colored_polygon(PackedVector2Array([tip, p + side, p - side]), Color(1.0, 0.85, 0.2, 0.9))
 
 
 func _fmt_time(t: float) -> String:

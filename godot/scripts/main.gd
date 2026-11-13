@@ -23,9 +23,9 @@ const PRESETS := [
 ]
 
 const QUALITY := {
-	"Performance": {"sse": 44.0, "far": 60000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 600, "scale": 0.75},
-	"Balanced": {"sse": 26.0, "far": 90000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 900, "scale": 1.0},
-	"Quality": {"sse": 15.0, "far": 120000.0, "msaa": Viewport.MSAA_2X, "tiles": 1400, "scale": 1.0},
+	"Performance": {"sse": 44.0, "far": 60000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 600, "scale": 0.75, "preload": 3500.0},
+	"Balanced": {"sse": 26.0, "far": 90000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 1000, "scale": 1.0, "preload": 5000.0},
+	"Quality": {"sse": 15.0, "far": 120000.0, "msaa": Viewport.MSAA_2X, "tiles": 1600, "scale": 1.0, "preload": 6500.0},
 }
 
 var state := State.BOOT
@@ -33,6 +33,9 @@ var tiles: GoogleTiles
 var aircraft: Aircraft
 var camera: FlightCamera
 var hud: Hud
+var rings: RingCourse
+var touch: TouchControls
+var is_mobile := false
 var menu: Node
 var engine_audio: EngineAudio
 var radio: Radio
@@ -40,9 +43,10 @@ var env: WorldEnvironment
 var sun: DirectionalLight3D
 
 var place := {"name": "San Francisco", "lat": 37.7897, "lon": -122.4017}
-var vehicle_id := "aerion"
+var vehicle_id := "typhoon"
 var quality := "Balanced"
 var radio_wanted := true
+var rings_wanted := true
 var _prep_timer := 0.0
 var _crash_timer := 0.0
 var _path: Array = []
@@ -81,6 +85,19 @@ func _ready() -> void:
 	hud.radio = radio
 	add_child(hud)
 	hud.visible = false
+	rings = RingCourse.new()
+	rings.aircraft = aircraft
+	rings.tiles = tiles
+	rings.ring_passed.connect(_on_ring_passed)
+	rings.ring_missed.connect(func(): hud.toast("Missed", 0.8))
+	add_child(rings)
+	hud.rings = rings
+	touch = TouchControls.new()
+	touch.main = self
+	add_child(touch)
+	is_mobile = _detect_mobile()
+	_apply_ui_scale()
+	get_viewport().size_changed.connect(_apply_ui_scale)
 	menu = load("res://scripts/menu.gd").new()
 	menu.main = self
 	add_child(menu)
@@ -88,8 +105,40 @@ func _ready() -> void:
 	_boot()
 
 
+## Phones/tablets: touchscreen present, or a mobile user agent on the web.
+func _detect_mobile() -> bool:
+	if _url_param("touch") == "1":
+		return true
+	if _url_param("touch") == "0":
+		return false
+	if DisplayServer.is_touchscreen_available():
+		return true
+	if OS.has_feature("web"):
+		var ua = JavaScriptBridge.eval("/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints || 0) > 1", true)
+		return ua == true
+	return false
+
+
+## Scale the UI with the screen: readable on a phone, not gigantic on a 4K
+## monitor. The project renders at the window's real resolution.
+func _apply_ui_scale() -> void:
+	var sz := get_viewport().get_visible_rect().size
+	var short_side: float = min(sz.x, sz.y)
+	var factor: float = clamp(short_side / 720.0, 0.75, 2.0)
+	if is_mobile:
+		factor = clamp(short_side / 420.0, 1.0, 2.6)
+	get_tree().root.content_scale_factor = factor
+	if menu != null:
+		menu.relayout()
+	if hud != null:
+		hud.mobile = is_mobile
+
+
 func _boot() -> void:
 	state = State.MENU
+	if is_mobile:
+		quality = "Performance"
+		menu.set_mobile_defaults()
 	menu.set_status("Loading configuration…")
 	await Api.load_config()
 	if Api.api_key == "":
@@ -114,6 +163,11 @@ func _trace(delta: float) -> void:
 	_trace_total += delta
 	var limit := _url_param("seconds")
 	if limit != "" and _trace_total > float(limit):
+		var shot := _url_param("shot")
+		if shot != "":
+			var img := get_viewport().get_texture().get_image()
+			img.save_png(shot)
+			print("[trace] screenshot ", shot, " ", img.get_size())
 		print("[trace] done")
 		get_tree().quit()
 	if _trace_timer >= 3.0:
@@ -121,9 +175,8 @@ func _trace(delta: float) -> void:
 		var st := tiles.stats()
 		var g := tiles.ground_height(aircraft.position)
 		var tm := aircraft.telemetry()
-		if is_nan(g) and state == State.FLYING:
-			print("[trace] collision: ", tiles.debug_collision(aircraft.position))
-		print("[trace] state=%s tiles(vis=%d loaded=%d q=%d fail=%d) ground=%s agl=%s alt=%.0f spd=%.0f pos=%s" % [State.keys()[state], st.visible, st.loaded, st.queued, st.failed, str(g), str(tm.agl), tm.altitude, tm.airspeed, aircraft.position.snapped(Vector3(1, 1, 1))])
+		pass
+		print("[trace] state=%s tiles(vis=%d loaded=%d q=%d dec=%d avg=%.1fms fail=%d) ground=%s agl=%s alt=%.0f spd=%.0f pos=%s" % [State.keys()[state], st.visible, st.loaded, st.queued, st.pending_decode, st.decode_ms_avg, st.failed, str(g), str(tm.agl), tm.altitude, tm.airspeed, aircraft.position.snapped(Vector3(1, 1, 1))])
 
 
 func _build_environment() -> void:
@@ -157,11 +210,19 @@ func _build_environment() -> void:
 	e.adjustment_contrast = 1.03
 	env.environment = e
 	add_child(env)
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	sun = DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.86, 0.68)
-	sun.light_energy = 1.3
-	sun.rotation_degrees = Vector3(-22.0, 140.0, 0.0)
-	sun.shadow_enabled = false
+	sun.light_color = Color(1.0, 0.88, 0.72)
+	sun.light_energy = 1.4
+	sun.rotation_degrees = Vector3(-28.0, 140.0, 0.0)
+	# Shadows only matter on the aircraft (tiles are unshaded), so keep the
+	# shadow volume tight around it: orthogonal, short range, one split.
+	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 120.0
+	sun.directional_shadow_fade_start = 0.9
+	sun.shadow_bias = 0.03
+	sun.shadow_normal_bias = 1.5
 	add_child(sun)
 
 
@@ -176,7 +237,11 @@ func start_flight() -> void:
 	aircraft.set_vehicle(vehicle_id)
 	engine_audio.engine_kind = aircraft.spec.engine
 	engine_audio.build()
-	aircraft.spawn(place.lat, place.lon, 700.0, randf_range(0.0, 360.0))
+	# Spawn 2.5 km out, pointed at the place, so the city is in front of you.
+	var heading := randf_range(0.0, 360.0)
+	var back := Geo.geodetic_to_local(place.lat, place.lon, 0.0) - Vector3(sin(deg_to_rad(heading)), 0.0, -cos(deg_to_rad(heading))) * 2500.0
+	var spawn_geo := Geo.local_to_geodetic(back)
+	aircraft.spawn(spawn_geo[0], spawn_geo[1], 700.0, heading)
 	aircraft.frozen = true
 	camera.set_mode(FlightCamera.Mode.CHASE)
 	camera.snap()
@@ -187,6 +252,13 @@ func start_flight() -> void:
 	_path.clear()
 	top_speed = 0.0
 	_prep_timer = 0.0
+	# Preload a full bubble around the spawn so the first minute is smooth.
+	tiles.preload_radius = float(QUALITY.get(quality, QUALITY["Balanced"]).get("preload", 5000.0))
+	if is_mobile:
+		tiles.preload_radius = min(tiles.preload_radius, 3000.0)
+	if _url_param("preload") != "":
+		tiles.preload_radius = float(_url_param("preload"))
+	touch.set_enabled(is_mobile)
 	state = State.PREPARING
 	_set_mouse_capture(false)
 
@@ -218,6 +290,7 @@ func _url_param(name: String) -> String:
 
 
 func _finish_preparing() -> void:
+	tiles.preload_radius = 0.0
 	# Lift the spawn so we start a safe height above whatever is below.
 	var g := tiles.ground_height(aircraft.position)
 	if not is_nan(g):
@@ -229,6 +302,11 @@ func _finish_preparing() -> void:
 	state = State.FLYING
 	if radio_wanted:
 		radio.play()
+	if rings_wanted:
+		rings.start()
+	if is_mobile:
+		hud.show_hint("Drag on the left to steer · right slider boosts or brakes · buttons along the bottom", 10.0)
+		return
 	hud.show_hint("W/S pitch · A/D roll · Q/E rudder · Shift/Ctrl throttle · L level · R loop · T roll · C camera · B assist · Esc menu", 12.0)
 
 
@@ -255,7 +333,7 @@ func finish_flight() -> void:
 	aircraft.frozen = true
 	menu.show_pause(false)
 	var tm := aircraft.telemetry()
-	var vehicle_api: String = {"aerion": "plane", "wayfarer": "spaceship", "cyberwing": "cyberwing"}.get(vehicle_id, "plane")
+	var vehicle_api: String = {"typhoon": "cyberwing", "tomcat": "plane", "sabre": "plane", "nova": "spaceship"}.get(vehicle_id, "plane")
 	var entry := {
 		"name": menu.pilot_name(),
 		"distanceKm": tm.distance / 1000.0,
@@ -265,7 +343,8 @@ func finish_flight() -> void:
 		"vehicle": vehicle_api,
 		"world": "google",
 	}
-	last_result = {"distance": tm.distance, "time": tm.time, "max_g": aircraft.max_g, "top_speed": top_speed, "place": place.name}
+	last_result = {"distance": tm.distance, "time": tm.time, "max_g": aircraft.max_g, "top_speed": top_speed, "place": place.name, "score": rings.score, "rings": rings.rings_hit, "best_combo": rings.best_combo}
+	rings.clear()
 	menu.show_summary(last_result, null)
 	var res = await Api.submit_score(entry)
 	if res is Dictionary:
@@ -277,6 +356,8 @@ func finish_flight() -> void:
 func back_to_menu() -> void:
 	state = State.MENU
 	aircraft.frozen = true
+	rings.clear()
+	touch.set_enabled(false)
 	hud.visible = false
 	radio.stop()
 	menu.show_pause(false)
@@ -312,9 +393,16 @@ func _respawn() -> void:
 
 func _on_maneuver_done(kind: String) -> void:
 	if kind == "loop":
-		hud.toast("Loop!", 2.0)
+		rings.score += 500
+		hud.toast("LOOP  +500", 2.0)
 	elif kind == "roll":
-		hud.toast("Barrel roll!", 2.0)
+		rings.score += 300
+		hud.toast("BARREL ROLL  +300", 2.0)
+
+
+func _on_ring_passed(points: int, combo: int) -> void:
+	hud.toast("+%d%s" % [points, ("  x%d combo" % combo) if combo > 1 else ""], 1.2)
+	camera.kick(0.6)
 
 
 # --------------------------------------------------------------- per frame
@@ -326,10 +414,12 @@ func _process(delta: float) -> void:
 			_prep_timer += delta
 			var progress := tiles.loading_progress()
 			var g := tiles.ground_height(aircraft.position)
-			menu.set_loading(progress, "Streaming %s… %d%%" % [place.name, int(progress * 100.0)])
-			# Go once the view is mostly loaded and we know the ground height
-			# under the spawn; never wait longer than ~20 s of game time.
-			if (progress > 0.9 and _prep_timer > 2.0 and (not is_nan(g) or _prep_timer > 8.0)) or _prep_timer > 20.0:
+			var st := tiles.stats()
+			menu.set_loading(progress, "Loading %s… %d%% (%d tiles)" % [place.name, int(progress * 100.0), st.loaded])
+			# Go once the whole preload bubble is in (queue idle) and we know
+			# the ground height under the spawn; never wait longer than ~45 s.
+			var done: bool = tiles.idle() and _prep_timer > 1.5 and (not is_nan(g) or _prep_timer > 10.0)
+			if done or _prep_timer > 45.0:
 				_finish_preparing()
 		State.FLYING, State.CRASHED:
 			_flying(delta)
@@ -343,6 +433,7 @@ func _process(delta: float) -> void:
 
 func _flying(delta: float) -> void:
 	top_speed = max(top_speed, aircraft.airspeed)
+	tiles.lookahead_velocity = aircraft.velocity
 	_path_timer -= delta
 	if _path_timer <= 0.0:
 		_path_timer = 2.0
@@ -411,8 +502,16 @@ func _expose_debug() -> void:
 	_debug_cb = JavaScriptBridge.create_callback(_debug_snapshot)
 	JavaScriptBridge.get_interface("window").openskies_cb = _debug_cb
 	JavaScriptBridge.eval("window.openskies = function(){ window.__os_snapshot = null; window.openskies_cb(); return window.__os_snapshot; };", true)
+	_takeoff_cb = JavaScriptBridge.create_callback(_debug_takeoff)
+	JavaScriptBridge.get_interface("window").openskies_takeoff = _takeoff_cb
 
 var _debug_cb: JavaScriptObject
+var _takeoff_cb: JavaScriptObject
+
+
+func _debug_takeoff(_args: Array) -> void:
+	if state == State.MENU:
+		menu._on_take_off()
 
 
 func _debug_snapshot(_args: Array) -> void:

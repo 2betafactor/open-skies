@@ -26,6 +26,11 @@ const YUP_TO_ZUP := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 @export var collision_radius := 1800.0
 @export var far_distance := 90000.0
 @export var select_interval := 0.15
+@export var bubble_ge := 40.0          # collision/prefetch bubble refines to this detail
+@export var lookahead_seconds := 18.0  # prefetch where the aircraft will be
+@export var decode_budget_ms := 7.0    # per-frame glTF decode budget
+var preload_radius := 0.0              # > 0 while preparing: load a full bubble first
+var lookahead_velocity := Vector3.ZERO
 
 var camera: Camera3D
 var focus: Node3D                       # aircraft; drives collision radius
@@ -39,6 +44,10 @@ var _busy: Dictionary = {}              # HTTPRequest -> tile
 var _queue: Array = []                  # tiles wanted but not loaded
 var _loaded: Array = []                 # tiles with a scene node
 var _visible_now: Dictionary = {}       # tile id -> true
+var _bubble_now: Dictionary = {}        # tile id -> true (collision / prefetch set)
+var _decode_queue: Array = []           # [tile, body] awaiting a decode slot
+var _decode_us := 0
+var _decoded := 0
 var _select_timer := 0.0
 var _epoch := -1
 var _ecef_basis := Basis()
@@ -84,6 +93,8 @@ func stats() -> Dictionary:
 	_stats["queued"] = _queue.size()
 	_stats["loaded"] = _loaded.size()
 	_stats["inflight"] = _busy.size()
+	_stats["pending_decode"] = _decode_queue.size()
+	_stats["decode_ms_avg"] = (_decode_us / 1000.0 / _decoded) if _decoded > 0 else 0.0
 	return _stats
 
 
@@ -97,10 +108,16 @@ func attribution() -> String:
 func loading_progress() -> float:
 	if root_tile.is_empty():
 		return 0.0
-	var want := _visible_now.size() + _queue.size() + _busy.size()
-	if want == 0:
+	var pending := _queue.size() + _busy.size() + _decode_queue.size()
+	var have := _visible_now.size() + _bubble_now.size()
+	if have + pending == 0:
 		return 0.0
-	return float(_visible_now.size()) / float(want)
+	return float(have) / float(have + pending)
+
+
+## True once nothing is queued, in flight or waiting to decode.
+func idle() -> bool:
+	return _queue.is_empty() and _busy.is_empty() and _decode_queue.is_empty()
 
 
 # ---------------------------------------------------------------- traversal
@@ -113,13 +130,31 @@ func _process(delta: float) -> void:
 		_select_timer = select_interval
 		_select()
 	_pump()
+	_decode_some()
+
+
+## Decode queued tiles within a per-frame time budget so a burst of
+## downloads never stalls a frame.
+func _decode_some() -> void:
+	var start := Time.get_ticks_usec()
+	var budget := int(decode_budget_ms * 1000.0)
+	if preload_radius > 0.0:
+		budget *= 6   # nobody is flying yet; use the frame
+	while _decode_queue.size() > 0 and Time.get_ticks_usec() - start < budget:
+		var job: Array = _decode_queue.pop_front()
+		var t0 := Time.get_ticks_usec()
+		_build_tile(job[0], job[1])
+		_decode_us += Time.get_ticks_usec() - t0
+		_decoded += 1
 
 
 func _select() -> void:
 	if Geo.origin_epoch != _epoch:
 		_epoch = Geo.origin_epoch
 		_ecef_basis = Geo.ecef_basis()
-	var vp_h := float(camera.get_viewport().get_visible_rect().size.y)
+	# Floor the height so tiny windows (headless tests, minimised) still
+	# refine sensibly; phones get fewer, coarser tiles on purpose.
+	var vp_h: float = max(float(camera.get_viewport().get_visible_rect().size.y), 540.0)
 	var sse_scale := vp_h / (2.0 * tan(deg_to_rad(camera.fov) * 0.5))
 	var planes := camera.get_frustum()
 	var cam_pos := camera.global_position
@@ -127,18 +162,37 @@ func _select() -> void:
 	var loads: Array = []
 	_traverse(root_tile, planes, cam_pos, sse_scale, wanted, loads, 0)
 
-	# Apply visibility.
+	# Bubbles: tiles around the aircraft (collision + no pop-in when the
+	# camera turns) and ahead of it (prefetch). They never block the render
+	# traversal's REPLACE decisions; they only add loads and collision.
+	var bubble: Dictionary = {}
+	var bubble_loads: Array = []
+	if focus != null:
+		var fp := focus.global_position
+		var r: float = preload_radius if preload_radius > 0.0 else collision_radius
+		_traverse_bubble(root_tile, fp, r, bubble, bubble_loads)
+		if preload_radius <= 0.0 and lookahead_velocity.length() > 30.0:
+			var ahead: Vector3 = fp + lookahead_velocity * lookahead_seconds
+			_traverse_bubble(root_tile, ahead, collision_radius * 1.2, bubble, bubble_loads)
+
+	# Apply visibility and collision.
 	var now_visible: Dictionary = {}
 	var now := Time.get_ticks_msec() * 0.001
 	for t in wanted:
 		now_visible[t.id] = true
 		t.last_wanted = now
+	for id in bubble:
+		bubble[id].last_wanted = now
 	for t in _loaded:
 		var vis: bool = now_visible.has(t.id)
 		if t.node.visible != vis:
 			t.node.visible = vis
-		_update_collision(t, vis)
+		_update_collision(t, vis or bubble.has(t.id))
 	_visible_now = now_visible
+	_bubble_now = bubble
+	for t in bubble_loads:
+		t.priority += 4000.0   # after everything the camera needs
+		loads.append(t)
 
 	# Rebuild the queue: closest / coarsest first.
 	loads.sort_custom(func(a, b): return a.priority < b.priority)
@@ -202,6 +256,34 @@ func _traverse(t: Dictionary, planes: Array, cam: Vector3, sse_scale: float, wan
 	# Leaf with nothing finer: nothing more to do.
 
 
+## Descend to `bubble_ge` detail for every tile within `radius` of `centre`,
+## collecting loaded tiles into `out` and missing ones into `loads`.
+func _traverse_bubble(t: Dictionary, centre: Vector3, radius: float, out: Dictionary, loads: Array) -> void:
+	_ensure_local(t)
+	var dist := _distance(t, centre)
+	if dist > radius:
+		return
+	if t.sub_uri != "" and not t.sub_loaded:
+		t.priority = dist
+		if t.sub_state == S_NONE:
+			t.sub_state = S_QUEUED
+		if t.sub_state != S_LOADING:
+			loads.append(t)
+		return
+	if t.ge > bubble_ge and t.children.size() > 0:
+		for c in t.children:
+			_traverse_bubble(c, centre, radius, out, loads)
+		return
+	if t.uri == "":
+		return
+	if t.state == S_LOADED:
+		out[t.id] = t
+	else:
+		t.priority = dist
+		if t.state != S_LOADING:
+			loads.append(t)
+
+
 func _want_self(t: Dictionary, wanted: Array, loads: Array, dist: float) -> void:
 	if t.uri == "":
 		return
@@ -237,10 +319,6 @@ func _ensure_local(t: Dictionary) -> void:
 func _culled(t: Dictionary, planes: Array) -> bool:
 	var c: Vector3 = t.lc
 	var r: float = t.radius
-	# Tiles around the aircraft are never culled: they carry the collision
-	# geometry (ground height, crashes) even when the camera looks elsewhere.
-	if focus != null and c.distance_to(focus.global_position) < collision_radius + r:
-		return false
 	# Sphere test first (cheap), then the 8 OBB corners.
 	for p in planes:
 		var d: float = p.distance_to(c)
@@ -354,7 +432,7 @@ func _on_request_completed(result: int, code: int, _headers: PackedStringArray, 
 		"sub":
 			_parse_subtree(job.tile, body)
 		"tile":
-			_build_tile(job.tile, body)
+			_decode_queue.append([job.tile, body])
 
 
 func _parse_root(body: PackedByteArray) -> void:
@@ -595,7 +673,7 @@ func _update_collision(t: Dictionary, vis: bool) -> void:
 	# Only reasonably fine tiles (ge < 150 m) carry collision: the coarse
 	# globe tiles are hundreds of metres off and would place the spawn
 	# underground.
-	var near: bool = vis and t.ge < 150.0 and t.lc.distance_to(focus.global_position) < collision_radius + t.radius
+	var near: bool = vis and t.ge < 150.0 and _distance(t, focus.global_position) < collision_radius * 1.5
 	if near and t.collision == null:
 		var bodies: Array = []
 		for mi in t.meshes:
@@ -675,7 +753,7 @@ func _evict(now: float) -> void:
 		return
 	var candidates: Array = []
 	for t in _loaded:
-		if not _visible_now.has(t.id):
+		if not _visible_now.has(t.id) and not _bubble_now.has(t.id):
 			candidates.append(t)
 	candidates.sort_custom(func(a, b): return a.last_wanted < b.last_wanted)
 	var excess := _loaded.size() - int(max_loaded_tiles * 0.85)

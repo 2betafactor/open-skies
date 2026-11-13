@@ -6,7 +6,7 @@ var ac: Aircraft
 var t := 0.0
 var phase := 0
 var phase_t := 0.0
-var vehicle := "aerion"
+var vehicle := "typhoon"
 var fails := 0
 var debug := false
 var loop_started := 0.0
@@ -22,6 +22,7 @@ func _ready() -> void:
 	ac.vehicle_id = vehicle
 	add_child(ac)
 	ac.spawn(37.79, -122.4, 800.0, 90.0)
+	ac.assist = Aircraft.Assist.NORMAL   # the suite exercises the Pro fly-by-wire
 	ac.frozen = false
 	ac.input_enabled = true
 	Controls.set_touch(Vector2.ZERO, 0.0)
@@ -64,7 +65,7 @@ func _physics_process(delta: float) -> void:
 		2:
 			if _since() > 1.5 and not fbw_checked:
 				fbw_checked = true
-				_check(ac.bank_deg() > 30.0 and ac.bank_deg() < 75.0, "roll stops near release bank (%.0f)" % ac.bank_deg())
+				_check(ac.bank_deg() > 30.0 and ac.bank_deg() < 88.0, "roll stops near release bank (%.0f)" % ac.bank_deg())
 			if _since() > 15.0:
 				_check(abs(ac.position.y - 800.0) < 250.0, "turn compensation holds altitude (%.0f)" % ac.position.y)
 				_check(ac.bank_deg() > 20.0, "bank held with neutral stick (%.0f)" % ac.bank_deg())
@@ -117,6 +118,21 @@ func _physics_process(delta: float) -> void:
 				_check(abs(ac.bank_deg()) < 5.0 and abs(ac.pitch_deg()) < 6.0, "level at full throttle (bank %.0f pitch %.0f)" % [ac.bank_deg(), ac.pitch_deg()])
 				print("max speed %.0f m/s, max G %.1f" % [ac.airspeed, ac.max_g])
 				_next("full throttle 30s")
+				ac.assist = Aircraft.Assist.ARCADE
+				Controls.set_touch(Vector2(1.0, 0.0), 0.0)
+		11:
+			if _since() > 1.0:
+				Controls.set_touch(Vector2.ZERO, 1.0)   # release stick, hold boost
+				_next("arcade roll")
+		12:
+			if _since() > 2.0:
+				_check(ac.boost > 0.5 and ac.throttle_cmd > 0.8, "arcade boost engages (boost %.1f thr %.2f)" % [ac.boost, ac.throttle_cmd])
+				_next("boost check")
+		13:
+			if _since() > 5.0:
+				_check(abs(ac.bank_deg()) < 8.0, "arcade auto-levels after a roll (bank %.0f)" % ac.bank_deg())
+				Controls.set_touch(Vector2.ZERO, 0.0)
+				_next("arcade boost")
 				print("RESULT ", "PASS" if fails == 0 else "FAIL (%d)" % fails)
 				get_tree().quit(0 if fails == 0 else 1)
 

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dbn3vobkxho34"
-path="res://.godot/imported/cyberwing.glb-5a12c739bb12147dc3eaf0890f2fb2f9.scn"
+uid="uid://jc3tta2g65cv"
+path="res://.godot/imported/tomcat.glb-b5d17b9524efd3d8e9bf411578a0c56b.scn"
 
 [deps]
 
-source_file="res://assets/cyberwing.glb"
-dest_files=["res://.godot/imported/cyberwing.glb-5a12c739bb12147dc3eaf0890f2fb2f9.scn"]
+source_file="res://assets/tomcat.glb"
+dest_files=["res://.godot/imported/tomcat.glb-b5d17b9524efd3d8e9bf411578a0c56b.scn"]
 
 [params]
 

@@ -16,8 +16,8 @@ OUT = os.path.join(HERE, "out")
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", default="http://localhost:8000/play/?quality=Performance&scale=0.3")
-    ap.add_argument("--seconds", type=float, default=240.0)
+    ap.add_argument("--url", default="http://localhost:8000/play/?quality=Performance&scale=0.3&preload=600")
+    ap.add_argument("--seconds", type=float, default=360.0)
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     failures = []
@@ -74,6 +74,10 @@ def main():
                 snap = page.evaluate("window.openskies()")
                 if snap["state"] != "MENU":
                     break
+        if snap["state"] == "MENU":
+            page.evaluate("window.openskies_takeoff()")
+            time.sleep(0.5)
+            snap = page.evaluate("window.openskies()")
         check(snap["state"] in ("PREPARING", "FLYING"), "take off started (state %s)" % snap["state"])
 
         flying_at = None

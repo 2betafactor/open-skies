@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dc72sileln0th"
-path="res://.godot/imported/wayfarer.glb-5cc1439178c514e885b9181f5eb6bd88.scn"
+uid="uid://ddm2d6civlip"
+path="res://.godot/imported/typhoon.glb-078472827d30593a071e4c1f3330ff6a.scn"
 
 [deps]
 
-source_file="res://assets/wayfarer.glb"
-dest_files=["res://.godot/imported/wayfarer.glb-5cc1439178c514e885b9181f5eb6bd88.scn"]
+source_file="res://assets/typhoon.glb"
+dest_files=["res://.godot/imported/typhoon.glb-078472827d30593a071e4c1f3330ff6a.scn"]
 
 [params]
 

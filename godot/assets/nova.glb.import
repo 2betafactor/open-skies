@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b4xbdk7tctvmu"
-path="res://.godot/imported/aerion.glb-f6dda42c2b8dffb0ffacabc4589dc83a.scn"
+uid="uid://bue7v8db1jbtp"
+path="res://.godot/imported/nova.glb-df9acbc7c0262a6e816b0017986d1282.scn"
 
 [deps]
 
-source_file="res://assets/aerion.glb"
-dest_files=["res://.godot/imported/aerion.glb-f6dda42c2b8dffb0ffacabc4589dc83a.scn"]
+source_file="res://assets/nova.glb"
+dest_files=["res://.godot/imported/nova.glb-df9acbc7c0262a6e816b0017986d1282.scn"]
 
 [params]
 

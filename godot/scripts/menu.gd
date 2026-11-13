@@ -19,9 +19,12 @@ var _vehicle_buttons: Dictionary = {}
 var _assist: OptionButton
 var _quality: OptionButton
 var _radio_check: CheckBox
+var _rings_check: CheckBox
 var _name: LineEdit
 var _board: RichTextLabel
 var _results_data: Array = []
+var _panels: Array = []
+var _panel_widths: Array = []
 var _geo_cb: JavaScriptObject
 
 const PANEL := Color(0.03, 0.07, 0.06, 0.86)
@@ -117,14 +120,18 @@ func _build_menu() -> void:
 	title.add_theme_constant_override("outline_size", 0)
 	_label(col, "Fly the real world. Google Photorealistic 3D Tiles, a proper flight model, and Nightride FM.", 15, DIM)
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	# Panels wrap onto new lines on narrow (phone) screens.
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 14)
+	row.add_theme_constant_override("v_separation", 14)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(row)
 
 	# --- Where
 	var where := _panel(row, 360)
 	where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panels.append(where)
+	_panel_widths.append(360.0)
 	var wv := VBoxContainer.new()
 	where.add_child(wv)
 	_label(wv, "WHERE", 13, ACCENT)
@@ -153,6 +160,8 @@ func _build_menu() -> void:
 	# --- What
 	var what := _panel(row, 330)
 	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panels.append(what)
+	_panel_widths.append(330.0)
 	var av := VBoxContainer.new()
 	what.add_child(av)
 	_label(av, "AIRCRAFT", 13, ACCENT)
@@ -161,24 +170,30 @@ func _build_menu() -> void:
 		var b := Button.new()
 		b.text = "%s\n%s" % [spec.name, spec.blurb]
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.toggle_mode = true
 		b.pressed.connect(func(): _set_vehicle(id))
 		av.add_child(b)
 		_vehicle_buttons[id] = b
-	_set_vehicle("aerion")
+	_set_vehicle("typhoon")
 	_label(av, "ASSIST", 13, ACCENT)
 	_assist = OptionButton.new()
 	for n in Aircraft.ASSIST_NAMES:
 		_assist.add_item(n)
-	_assist.selected = 1
+	_assist.selected = 0
 	av.add_child(_assist)
-	_label(av, "Easy auto-levels and guards the ground. Normal is fly-by-wire: rate command, altitude held in turns, stall and G protection. Sim is raw surfaces.", 12, DIM)
+	_label(av, "Arcade: point and go — auto-level, auto-throttle with boost, no stalls. Pro: fly-by-wire with real limits. Sim: raw surfaces.", 12, DIM)
 	_label(av, "GRAPHICS", 13, ACCENT)
 	_quality = OptionButton.new()
 	for q in main.QUALITY.keys():
 		_quality.add_item(q)
 	_quality.selected = 1
 	av.add_child(_quality)
+	_rings_check = CheckBox.new()
+	_rings_check.text = "Ring run (score & combos)"
+	_rings_check.button_pressed = true
+	av.add_child(_rings_check)
 	_radio_check = CheckBox.new()
 	_radio_check.text = "Nightride FM on takeoff"
 	_radio_check.button_pressed = true
@@ -197,6 +212,8 @@ func _build_menu() -> void:
 	# --- Leaderboard
 	var lb := _panel(row, 280)
 	lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panels.append(lb)
+	_panel_widths.append(280.0)
 	var lv := VBoxContainer.new()
 	lb.add_child(lv)
 	_label(lv, "LEADERBOARD · distance flown", 13, ACCENT)
@@ -228,6 +245,15 @@ func _build_menu() -> void:
 	_status.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_label(col, "W/S pitch · A/D roll · Q/E rudder · Shift/Ctrl throttle · Space brake · L level · R loop · T barrel roll · C camera · B assist · H hide HUD · M radio · drag the mouse to look around · Esc menu", 12, DIM)
 	_label(col, "Classic (CesiumJS) version: /classic", 11, Color(DIM, 0.6))
+
+
+## Keep the panels narrower than the (scaled) screen so phones get a single
+## column that wraps instead of overflowing.
+func relayout() -> void:
+	var avail: float = get_viewport().get_visible_rect().size.x / get_tree().root.content_scale_factor
+	for i in range(_panels.size()):
+		var pnl: PanelContainer = _panels[i]
+		pnl.custom_minimum_size.x = min(float(_panel_widths[i]), avail - 60.0)
 
 
 func _set_place(p: Dictionary) -> void:
@@ -295,8 +321,14 @@ func _on_take_off() -> void:
 	if q != "" and main.QUALITY.has(q):
 		main.quality = q
 	main.radio_wanted = _radio_check.button_pressed
+	main.rings_wanted = _rings_check.button_pressed
 	main.start_flight()
 	main.aircraft.assist = _assist.selected as Aircraft.Assist
+
+
+func set_mobile_defaults() -> void:
+	_quality.selected = 0
+	_assist.selected = 0
 
 
 func pilot_name() -> String:
@@ -405,8 +437,8 @@ func _build_summary() -> void:
 
 func show_summary(result: Dictionary, board) -> void:
 	_summary.visible = true
-	var t := "[b]%s[/b]\nDistance: %.1f km\nTime: %d:%02d\nTop speed: %d km/h · Max %.1f G\n" % [
-		result.place, result.distance / 1000.0, int(result.time) / 60, int(result.time) % 60, int(result.top_speed * 3.6), result.max_g]
+	var t := "[b]%s[/b]\nScore: %d  (%d rings, best combo x%d)\nDistance: %.1f km\nTime: %d:%02d\nTop speed: %d km/h · Max %.1f G\n" % [
+		result.place, int(result.get("score", 0)), int(result.get("rings", 0)), int(result.get("best_combo", 0)), result.distance / 1000.0, int(result.time) / 60, int(result.time) % 60, int(result.top_speed * 3.6), result.max_g]
 	if board == null:
 		t += "[color=#aabbb0]Posting score…[/color]"
 	elif board is Array and board.size() > 0:

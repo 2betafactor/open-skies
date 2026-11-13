@@ -11,24 +11,28 @@ still served at `/classic`.
 
 ## Godot version (default at `/`)
 
-- **Flight model** — lift/drag with a soft stall, moments from real stability
-  derivatives, throttle spool, altitude-dependent air density, trimesh
-  collision against the streamed city. Three assist modes (`B`):
-  *Easy* (auto-level + terrain guard), *Normal* (rate-command fly-by-wire:
-  neutral stick holds altitude through turns, auto-coordinated rudder, angle of
-  attack and G limiters), *Sim* (raw control surfaces with an auto-trim wheel).
-  `R` flies a loop, `T` a barrel roll, `L` recovers to level flight.
-- **Three aircraft** — Aerion (executive jet), Cyberwing (strike fighter),
-  Wayfarer (vectored-thrust scout ship) with distinct mass, aerodynamics,
-  thrust and engine sound. Same glTF models as before, with animated ailerons,
-  elevator, rudder / elevons.
+- **Arcade by default** — point and go: wings level themselves, the engine
+  manages itself (hold `Shift` for boost, `Space` to brake), no stalls, and a
+  **Ring Run** course of glowing rings laid out ahead of you with score and
+  combos. Loops (`R`) and barrel rolls (`T`) score bonus points. Switch to
+  *Pro* for the full fly-by-wire (neutral stick holds altitude through turns,
+  auto-coordinated rudder, angle-of-attack and G limiters) or *Sim* for raw
+  control surfaces (`B` cycles).
+- **Flight model** — six-degree-of-freedom: lift/drag with a soft stall,
+  moments from stability derivatives, throttle spool, altitude-dependent air
+  density, trimesh collision against the streamed city.
+- **Four aircraft** — Typhoon (canard-delta fighter), Tomcat (swing wings
+  that sweep back with speed), Sabre (1950s classic) and Nova (vectored-thrust
+  scout ship), each with its own mass, aerodynamics, thrust and engine sound.
 - **World** — `godot/scripts/tiles.gd` streams Google Photorealistic 3D Tiles
-  in pure GDScript: screen-space-error refinement, a worker pool, runtime glTF
-  decoding, double-precision placement with a floating origin, and collision
-  for the tiles around the aircraft. Curvature of the Earth comes for free.
+  in pure GDScript: a full bubble around the spawn is preloaded before
+  takeoff, a look-ahead bubble prefetches where you are heading, decoding is
+  budgeted per frame, and the tiles around the aircraft carry collision.
+- **Mobile** — touch controls (virtual stick, boost/brake slider, buttons),
+  UI that scales with the screen, and lighter tile settings on phones.
 - **Cameras** — chase (spring-damped, partial roll follow, mouse orbit),
   cockpit, and fly-by (`C`). HUD with pitch ladder, heading tape, flight-path
-  marker, speed/altitude/AGL boxes, throttle, G and warnings (`H` compacts it).
+  marker, speed/altitude/AGL, boost, score and a pointer to the next ring.
 - **Music** — Nightride FM streams on takeoff (`M` toggles) on top of the
   procedural engine/wind layer.
 - **Leaderboard** — finish a flight from the pause menu (`Esc`) to post your
@@ -57,6 +61,13 @@ or `config.js`) and geocodes searches through `/api/search`, so the key never
 ships in the client bundle. Desktop builds talk to the hosted server by
 default; pass `--server=https://your.host` or `--key=AIza…` to override.
 Query-string overrides on the web: `?quality=Performance&scale=0.5`.
+
+### Credits
+Aircraft: Typhoon, Tomcat and Sabre are from the CC0 "fighter jets" pack on
+[OpenGameArt](https://opengameart.org/node/146570) (re-skinned here); Nova is
+the CC0 "Spaceship" by [Quaternius](https://quaternius.com). Map data:
+Google Photorealistic 3D Tiles (attribution shown in-game, as required).
+Music: [Nightride FM](https://nightride.fm).
 
 ### Tests
 ```bash
