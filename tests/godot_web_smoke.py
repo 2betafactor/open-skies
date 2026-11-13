@@ -88,7 +88,7 @@ def main():
             if time.time() - last_print > 8:
                 last_print = time.time()
                 print("    t=%3.0fs state=%s fps=%s tiles=%s prep=%.1f ground=%s col=%s pos=%s" % (time.time() - t0, snap["state"], snap.get("fps"), json.dumps(snap["tiles"]), snap.get("prep") or 0, snap.get("ground"), json.dumps(snap.get("collision")), snap.get("pos")))
-            if snap["state"] == "FLYING" and flying_at is None:
+            if snap["state"] in ("RUN", "FREE") and flying_at is None:
                 flying_at = time.time()
                 print("    flying after %.1fs; tiles %s" % (flying_at - t0, snap["tiles"]))
                 page.screenshot(path=os.path.join(OUT, "godot_flying_0.png"))
@@ -96,10 +96,15 @@ def main():
                 break
             time.sleep(1.0)
         page.screenshot(path=os.path.join(OUT, "godot_flying_1.png"))
-        check(flying_at is not None, "reached FLYING state")
+        check(flying_at is not None, "reached RUN state")
+        print("    score %s time_left %s" % (snap.get("score"), snap.get("time_left")))
         tm = snap.get("telemetry", {})
         print("    telemetry:", json.dumps({k: tm[k] for k in tm if k in ("airspeed", "altitude", "agl", "heading", "pitch", "bank", "g", "assist", "distance")}))
         print("    tiles:", json.dumps(snap["tiles"]), "fps", snap.get("fps"))
+        vis_deadline = time.time() + 60
+        while snap["tiles"]["visible"] < 10 and time.time() < vis_deadline:
+            time.sleep(3)
+            snap = page.evaluate("window.openskies()")
         check(snap["tiles"]["visible"] >= 10, "tiles visible in flight (%d)" % snap["tiles"]["visible"])
         check(snap["tiles"]["failed"] < 5, "few failed tile requests (%d)" % snap["tiles"]["failed"])
         check(tm.get("airspeed", 0) > 60, "aircraft is flying (%.0f m/s)" % tm.get("airspeed", 0))

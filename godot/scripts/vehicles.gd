@@ -34,7 +34,8 @@ const SPECS := {
 		"spawn_speed": 180.0,
 		"surfaces": {},
 		"engine": "afterburner",
-		"paint": {"body": Color(0.52, 0.56, 0.6), "dark": Color(0.22, 0.24, 0.27), "accent": Color(0.85, 0.3, 0.2)},
+		"paint": {"body": Color(0.92, 0.93, 0.95), "dark": Color(0.85, 0.15, 0.12), "accent": Color(0.85, 0.15, 0.12)},
+		"nozzles": [Vector3(-0.7, 0.0, 7.3), Vector3(0.7, 0.0, 7.3)],
 	},
 	"tomcat": {
 		"name": "Tomcat",
@@ -62,7 +63,8 @@ const SPECS := {
 		"surfaces": {},
 		"wing_sweep": {"left": "f14_tomcat_wing_l", "right": "f14_tomcat_wing_r", "max_deg": 48.0},
 		"engine": "afterburner",
-		"paint": {"body": Color(0.6, 0.63, 0.66), "dark": Color(0.25, 0.27, 0.3), "accent": Color(0.2, 0.3, 0.55)},
+		"paint": {"body": Color(0.2, 0.28, 0.5), "dark": Color(0.95, 0.8, 0.2), "accent": Color(0.95, 0.8, 0.2)},
+		"nozzles": [Vector3(-1.1, 0.0, 9.2), Vector3(1.1, 0.0, 9.2)],
 	},
 	"sabre": {
 		"name": "Sabre",
@@ -89,7 +91,8 @@ const SPECS := {
 		"spawn_speed": 150.0,
 		"surfaces": {},
 		"engine": "jet",
-		"paint": {"body": Color(0.78, 0.8, 0.82), "dark": Color(0.3, 0.3, 0.32), "accent": Color(0.9, 0.75, 0.1)},
+		"paint": {"body": Color(0.85, 0.87, 0.9), "dark": Color(0.95, 0.35, 0.1), "accent": Color(0.95, 0.35, 0.1)},
+		"nozzles": [Vector3(0.0, 0.0, 5.4)],
 	},
 	"nova": {
 		"name": "Nova",
@@ -117,6 +120,7 @@ const SPECS := {
 		"surfaces": {},
 		"engine": "ion",
 		"paint": {},
+		"nozzles": [Vector3(-1.2, 0.0, 6.2), Vector3(1.2, 0.0, 6.2)],
 	},
 }
 

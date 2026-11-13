@@ -430,8 +430,10 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 	if assist == Assist.ARCADE and _maneuver == "" and not is_nan(altitude_agl):
 		var sink := -velocity.y
 		var ttc: float = altitude_agl / max(sink, 0.1)
-		if sink > 0.0 and ttc < 6.0:
-			target_q = max(target_q, deg_to_rad(rates.x) * clamp((6.0 - ttc) / 4.0, 0.0, 1.0))
+		if sink > 0.0 and ttc < 5.0:
+			target_q = max(target_q, deg_to_rad(rates.x) * clamp((5.0 - ttc) / 3.0, 0.0, 1.0))
+			if ttc < 2.0:
+				target_p += -bank * 2.0   # and get the wings level to pull
 
 	# Turn compensation: neutral stick holds altitude through a bank. It
 	# fades out past 75 deg — beyond vertical, pitching "up" only drives the

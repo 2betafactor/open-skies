@@ -1,6 +1,6 @@
 extends CanvasLayer
-## Menus: launch screen (place, aircraft, assist, quality, leaderboard),
-## loading overlay, pause overlay and the post-flight summary. Built in code.
+## One-screen arcade menu: pick a city, pick a plane, PLAY. Plus pause and
+## the time-up summary with score posting.
 
 var main: Node
 var _root: Control
@@ -11,26 +11,26 @@ var _loading_label: Label
 var _pause: Control
 var _summary: Control
 var _summary_label: RichTextLabel
+var _summary_name: LineEdit
+var _post_button: Button
 var _status: Label
 var _search: LineEdit
 var _results: ItemList
 var _place_label: Label
-var _vehicle_buttons: Dictionary = {}
-var _assist: OptionButton
-var _quality: OptionButton
-var _radio_check: CheckBox
-var _rings_check: CheckBox
-var _name: LineEdit
+var _city_buttons: Dictionary = {}
+var _plane_buttons: Dictionary = {}
 var _board: RichTextLabel
 var _results_data: Array = []
-var _panels: Array = []
-var _panel_widths: Array = []
 var _geo_cb: JavaScriptObject
+var _panels: Array = []
+var _city_grid: GridContainer
+var _panel_widths: Array = []
 
-const PANEL := Color(0.03, 0.07, 0.06, 0.86)
-const ACCENT := Color(0.55, 0.95, 0.72)
-const TEXT := Color(0.92, 0.97, 0.94)
-const DIM := Color(0.7, 0.8, 0.75)
+const PANEL := Color(0.02, 0.04, 0.08, 0.78)
+const ACCENT := Color(1.0, 0.8, 0.25)
+const ACCENT2 := Color(0.45, 0.85, 1.0)
+const TEXT := Color(0.97, 0.97, 0.97)
+const DIM := Color(0.75, 0.8, 0.85)
 
 
 func _ready() -> void:
@@ -45,24 +45,29 @@ func _ready() -> void:
 	show_menu()
 
 
+func _style(col: Color, radius: int = 12, border: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.corner_radius_top_left = radius
+	sb.corner_radius_top_right = radius
+	sb.corner_radius_bottom_left = radius
+	sb.corner_radius_bottom_right = radius
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	if border.a > 0.0:
+		sb.border_width_bottom = 2
+		sb.border_width_top = 2
+		sb.border_width_left = 2
+		sb.border_width_right = 2
+		sb.border_color = border
+	return sb
+
+
 func _panel(parent: Control, w: float = 0.0) -> PanelContainer:
 	var p := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = PANEL
-	sb.corner_radius_top_left = 10
-	sb.corner_radius_top_right = 10
-	sb.corner_radius_bottom_left = 10
-	sb.corner_radius_bottom_right = 10
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 12
-	sb.content_margin_bottom = 12
-	sb.border_width_bottom = 1
-	sb.border_width_top = 1
-	sb.border_width_left = 1
-	sb.border_width_right = 1
-	sb.border_color = Color(ACCENT, 0.25)
-	p.add_theme_stylebox_override("panel", sb)
+	p.add_theme_stylebox_override("panel", _style(PANEL, 14, Color(1, 1, 1, 0.08)))
 	if w > 0.0:
 		p.custom_minimum_size.x = w
 	parent.add_child(p)
@@ -83,21 +88,37 @@ func _button(parent: Control, text: String, cb: Callable, big := false) -> Butto
 	var b := Button.new()
 	b.text = text
 	b.pressed.connect(cb)
+	b.add_theme_font_size_override("font_size", 24 if big else 15)
 	if big:
-		b.add_theme_font_size_override("font_size", 22)
-		b.custom_minimum_size = Vector2(240, 54)
+		b.custom_minimum_size = Vector2(260, 60)
 	parent.add_child(b)
 	return b
 
 
-# ------------------------------------------------------------- launch menu
+func _choice_button(parent: Control, text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.toggle_mode = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_stylebox_override("normal", _style(Color(1, 1, 1, 0.06), 10))
+	b.add_theme_stylebox_override("hover", _style(Color(1, 1, 1, 0.12), 10))
+	b.add_theme_stylebox_override("pressed", _style(Color(ACCENT, 0.18), 10, ACCENT))
+	b.add_theme_stylebox_override("hover_pressed", _style(Color(ACCENT, 0.22), 10, ACCENT))
+	b.add_theme_stylebox_override("focus", _style(Color(0, 0, 0, 0), 10))
+	b.pressed.connect(cb)
+	parent.add_child(b)
+	return b
+
 
 func _build_menu() -> void:
 	_menu = Control.new()
 	_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(_menu)
 	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.05, 0.05, 0.55)
+	bg.color = Color(0.02, 0.04, 0.1, 0.55)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_menu.add_child(bg)
 
@@ -107,164 +128,127 @@ func _build_menu() -> void:
 	_menu.add_child(scroll)
 	var outer := MarginContainer.new()
 	outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	outer.add_theme_constant_override("margin_left", 28)
-	outer.add_theme_constant_override("margin_right", 28)
-	outer.add_theme_constant_override("margin_top", 20)
-	outer.add_theme_constant_override("margin_bottom", 20)
+	outer.add_theme_constant_override("margin_left", 24)
+	outer.add_theme_constant_override("margin_right", 24)
+	outer.add_theme_constant_override("margin_top", 16)
+	outer.add_theme_constant_override("margin_bottom", 16)
 	scroll.add_child(outer)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 12)
+	col.add_theme_constant_override("separation", 10)
 	outer.add_child(col)
 
-	var title := _label(col, "OPEN SKIES", 40, ACCENT)
-	title.add_theme_constant_override("outline_size", 0)
-	_label(col, "Fly the real world. Google Photorealistic 3D Tiles, a proper flight model, and Nightride FM.", 15, DIM)
+	var title := _label(col, "OPEN SKIES", 46, ACCENT)
+	title.add_theme_constant_override("outline_size", 6)
+	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+	_label(col, "Fly through rings over the real world. Boost, loop, roll, rack up the combo before the clock runs out.", 15, DIM)
 
-	# Panels wrap onto new lines on narrow (phone) screens.
 	var row := HFlowContainer.new()
-	row.add_theme_constant_override("h_separation", 14)
-	row.add_theme_constant_override("v_separation", 14)
+	row.add_theme_constant_override("h_separation", 12)
+	row.add_theme_constant_override("v_separation", 12)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(row)
 
-	# --- Where
-	var where := _panel(row, 360)
+	var where := _panel(row, 340)
 	where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_panels.append(where)
-	_panel_widths.append(360.0)
+	_panel_widths.append(340.0)
 	var wv := VBoxContainer.new()
+	wv.add_theme_constant_override("separation", 6)
 	where.add_child(wv)
-	_label(wv, "WHERE", 13, ACCENT)
-	_place_label = _label(wv, "San Francisco", 20)
+	_label(wv, "CITY", 12, ACCENT2)
+	_place_label = _label(wv, "San Francisco", 22)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	wv.add_child(grid)
+	_city_grid = grid
+	for p in main.PRESETS:
+		var b := _choice_button(grid, p.name, func(): _set_place(p))
+		b.autowrap_mode = TextServer.AUTOWRAP_OFF
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_city_buttons[p.name] = b
+	_city_buttons["San Francisco"].button_pressed = true
 	var srow := HBoxContainer.new()
 	wv.add_child(srow)
 	_search = LineEdit.new()
-	_search.placeholder_text = "Search any place…"
+	_search.placeholder_text = "…or search any place"
 	_search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_search.text_submitted.connect(func(_t): _do_search())
 	srow.add_child(_search)
-	_button(srow, "Search", _do_search)
+	_button(srow, "Go", _do_search)
 	_results = ItemList.new()
-	_results.custom_minimum_size = Vector2(0, 0)
 	_results.visible = false
 	_results.item_selected.connect(_on_result_selected)
 	wv.add_child(_results)
-	var grid := GridContainer.new()
-	grid.columns = 3
-	wv.add_child(grid)
-	for p in main.PRESETS:
-		_button(grid, p.name, func(): _set_place(p))
 	if OS.has_feature("web"):
 		_button(wv, "Use my location", _use_my_location)
 
-	# --- What
-	var what := _panel(row, 330)
+	var what := _panel(row, 320)
 	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_panels.append(what)
-	_panel_widths.append(330.0)
+	_panel_widths.append(320.0)
 	var av := VBoxContainer.new()
+	av.add_theme_constant_override("separation", 6)
 	what.add_child(av)
-	_label(av, "AIRCRAFT", 13, ACCENT)
+	_label(av, "PLANE", 12, ACCENT2)
 	for id in Vehicles.ORDER:
 		var spec := Vehicles.get_spec(id)
-		var b := Button.new()
-		b.text = "%s\n%s" % [spec.name, spec.blurb]
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.toggle_mode = true
-		b.pressed.connect(func(): _set_vehicle(id))
-		av.add_child(b)
-		_vehicle_buttons[id] = b
+		var b := _choice_button(av, "%s\n%s" % [spec.name, spec.blurb], func(): _set_vehicle(id))
+		_plane_buttons[id] = b
 	_set_vehicle("typhoon")
-	_label(av, "ASSIST", 13, ACCENT)
-	_assist = OptionButton.new()
-	for n in Aircraft.ASSIST_NAMES:
-		_assist.add_item(n)
-	_assist.selected = 0
-	av.add_child(_assist)
-	_label(av, "Arcade: point and go — auto-level, auto-throttle with boost, no stalls. Pro: fly-by-wire with real limits. Sim: raw surfaces.", 12, DIM)
-	_label(av, "GRAPHICS", 13, ACCENT)
-	_quality = OptionButton.new()
-	for q in main.QUALITY.keys():
-		_quality.add_item(q)
-	_quality.selected = 1
-	av.add_child(_quality)
-	_rings_check = CheckBox.new()
-	_rings_check.text = "Ring run (score & combos)"
-	_rings_check.button_pressed = true
-	av.add_child(_rings_check)
-	_radio_check = CheckBox.new()
-	_radio_check.text = "Nightride FM on takeoff"
-	_radio_check.button_pressed = true
-	av.add_child(_radio_check)
-	var nrow := HBoxContainer.new()
-	av.add_child(nrow)
-	var pl := _label(nrow, "Pilot name", 13, DIM)
-	pl.autowrap_mode = TextServer.AUTOWRAP_OFF
-	pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_name = LineEdit.new()
-	_name.placeholder_text = "PILOT"
-	_name.max_length = 10
-	_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	nrow.add_child(_name)
 
-	# --- Leaderboard
-	var lb := _panel(row, 280)
+	var lb := _panel(row, 250)
 	lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_panels.append(lb)
-	_panel_widths.append(280.0)
+	_panel_widths.append(250.0)
 	var lv := VBoxContainer.new()
 	lb.add_child(lv)
-	_label(lv, "LEADERBOARD · distance flown", 13, ACCENT)
+	_label(lv, "TOP SCORES", 12, ACCENT2)
 	_board = RichTextLabel.new()
 	_board.bbcode_enabled = true
 	_board.fit_content = true
-	_board.custom_minimum_size = Vector2(0, 200)
-	_board.add_theme_font_size_override("normal_font_size", 13)
+	_board.custom_minimum_size = Vector2(0, 160)
+	_board.add_theme_font_size_override("normal_font_size", 14)
 	lv.add_child(_board)
 
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 16)
 	col.add_child(bottom)
-	var take := _button(bottom, "TAKE OFF", _on_take_off, true)
-	take.add_theme_color_override("font_color", Color(0.02, 0.08, 0.05))
-	var tsb := StyleBoxFlat.new()
-	tsb.bg_color = ACCENT
-	tsb.corner_radius_top_left = 8
-	tsb.corner_radius_top_right = 8
-	tsb.corner_radius_bottom_left = 8
-	tsb.corner_radius_bottom_right = 8
-	take.add_theme_stylebox_override("normal", tsb)
-	var hsb := tsb.duplicate()
-	hsb.bg_color = ACCENT.lightened(0.15)
-	take.add_theme_stylebox_override("hover", hsb)
-	take.add_theme_stylebox_override("pressed", hsb)
+	var play := _button(bottom, "PLAY", _on_play, true)
+	play.add_theme_color_override("font_color", Color(0.1, 0.07, 0.0))
+	play.add_theme_color_override("font_hover_color", Color(0.1, 0.07, 0.0))
+	play.add_theme_color_override("font_pressed_color", Color(0.1, 0.07, 0.0))
+	play.add_theme_stylebox_override("normal", _style(ACCENT, 14))
+	play.add_theme_stylebox_override("hover", _style(ACCENT.lightened(0.15), 14))
+	play.add_theme_stylebox_override("pressed", _style(ACCENT.darkened(0.1), 14))
+	play.add_theme_stylebox_override("focus", _style(Color(0, 0, 0, 0), 14))
 	_status = _label(bottom, "", 13, DIM)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_label(col, "W/S pitch · A/D roll · Q/E rudder · Shift/Ctrl throttle · Space brake · L level · R loop · T barrel roll · C camera · B assist · H hide HUD · M radio · drag the mouse to look around · Esc menu", 12, DIM)
-	_label(col, "Classic (CesiumJS) version: /classic", 11, Color(DIM, 0.6))
+	_label(col, "Arrows / WASD steer · Shift boost · Space brake · R loop · T barrel roll · C camera · M music · Esc pause", 12, DIM)
 
 
-## Keep the panels narrower than the (scaled) screen so phones get a single
-## column that wraps instead of overflowing.
 func relayout() -> void:
 	var avail: float = get_viewport().get_visible_rect().size.x / get_tree().root.content_scale_factor
 	for i in range(_panels.size()):
 		var pnl: PanelContainer = _panels[i]
-		pnl.custom_minimum_size.x = min(float(_panel_widths[i]), avail - 60.0)
+		pnl.custom_minimum_size.x = min(float(_panel_widths[i]), avail - 52.0)
+	if _city_grid != null:
+		_city_grid.columns = 1 if avail < 560.0 else 2
 
 
 func _set_place(p: Dictionary) -> void:
 	main.place = {"name": p.name, "lat": float(p.lat), "lon": float(p.lon)}
 	_place_label.text = p.name
+	for k in _city_buttons:
+		_city_buttons[k].button_pressed = (k == p.name)
 
 
 func _set_vehicle(id: String) -> void:
 	main.vehicle_id = id
-	for k in _vehicle_buttons:
-		_vehicle_buttons[k].button_pressed = (k == id)
+	for k in _plane_buttons:
+		_plane_buttons[k].button_pressed = (k == id)
 
 
 func _do_search() -> void:
@@ -288,11 +272,8 @@ func _on_result_selected(i: int) -> void:
 	if i < 0 or i >= _results_data.size():
 		return
 	var r = _results_data[i]
-	_set_place({"name": _short_name(str(r.name)), "lat": r.lat, "lon": r.lon})
-
-
-func _short_name(n: String) -> String:
-	return n.split(",")[0] if n.length() > 32 else n
+	var n := str(r.name)
+	_set_place({"name": n.split(",")[0] if n.length() > 28 else n, "lat": r.lat, "lon": r.lon})
 
 
 func _use_my_location() -> void:
@@ -309,30 +290,14 @@ func _use_my_location() -> void:
 
 func _on_geo(args: Array) -> void:
 	if args.size() < 2 or is_nan(float(args[0])):
-		set_status("Location unavailable — pick a place instead.", true)
+		set_status("Location unavailable — pick a city instead.", true)
 		return
 	_set_place({"name": "Your location", "lat": float(args[0]), "lon": float(args[1])})
 	set_status("")
 
 
-func _on_take_off() -> void:
-	main.quality = _quality.get_item_text(_quality.selected)
-	var q: String = main._url_param("quality")
-	if q != "" and main.QUALITY.has(q):
-		main.quality = q
-	main.radio_wanted = _radio_check.button_pressed
-	main.rings_wanted = _rings_check.button_pressed
+func _on_play() -> void:
 	main.start_flight()
-	main.aircraft.assist = _assist.selected as Aircraft.Assist
-
-
-func set_mobile_defaults() -> void:
-	_quality.selected = 0
-	_assist.selected = 0
-
-
-func pilot_name() -> String:
-	return _name.text.strip_edges() if _name.text.strip_edges() != "" else "PILOT"
 
 
 func set_status(text: String, is_error := false) -> void:
@@ -347,13 +312,15 @@ func refresh_scores() -> void:
 
 func _fill_board(scores: Array) -> void:
 	if scores.is_empty():
-		_board.text = "[color=#aabbb0]No flights yet — be the first.[/color]"
+		_board.text = "[color=#aab]No scores yet — be the first.[/color]"
 		return
 	var t := ""
 	var i := 1
-	for s in scores.slice(0, 10):
+	for s in scores.slice(0, 8):
 		var col: String = {1: "#ffd76a", 2: "#d9dde0", 3: "#e0a46a"}.get(i, "#eef5f0")
-		t += "[color=%s]%2d.  %s[/color]   %.1f km   [color=#aabbb0]%s[/color]\n" % [col, i, str(s.get("name", "PILOT")), float(s.get("distanceKm", 0)), str(s.get("vehicle", ""))]
+		var sc: int = int(s.get("score", 0))
+		var val: String = ("%d" % sc) if sc > 0 else ("%.1f km" % float(s.get("distanceKm", 0)))
+		t += "[color=%s]%d.  %s[/color]   %s\n" % [col, i, str(s.get("name", "PILOT")), val]
 		i += 1
 	_board.text = t
 
@@ -366,23 +333,22 @@ func hide_menu() -> void:
 	_menu.visible = false
 
 
-# ---------------------------------------------------------------- overlays
-
 func _build_loading() -> void:
 	_loading = CenterContainer.new()
 	_loading.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_loading.visible = false
 	_root.add_child(_loading)
-	var p := _panel(_loading, 420)
+	var p := _panel(_loading, 400)
 	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
-	_loading_label = _label(v, "Streaming the world…", 16)
+	_loading_label = _label(v, "Streaming the city…", 18)
 	_loading_bar = ProgressBar.new()
 	_loading_bar.max_value = 1.0
 	_loading_bar.show_percentage = false
-	_loading_bar.custom_minimum_size = Vector2(380, 14)
+	_loading_bar.custom_minimum_size = Vector2(360, 12)
 	v.add_child(_loading_bar)
-	_label(v, "Tiles are streamed from Google as you fly; the first seconds over a new city are the heaviest.", 12, DIM)
+	_label(v, "Fly through the gold ring. Every ring adds time and score; chain them for combos.", 12, DIM)
 
 
 func show_loading(on: bool) -> void:
@@ -399,15 +365,15 @@ func _build_pause() -> void:
 	_pause.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_pause.visible = false
 	_root.add_child(_pause)
-	var p := _panel(_pause, 320)
+	var p := _panel(_pause, 300)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
-	_label(v, "PAUSED", 22, ACCENT)
-	_button(v, "Resume (Esc)", func(): main.resume())
-	_button(v, "Finish flight & post score", func(): main.finish_flight())
-	_button(v, "Toggle radio (M)", func(): main.radio.toggle())
-	_button(v, "Back to menu", func(): main.back_to_menu())
+	_label(v, "PAUSED", 24, ACCENT)
+	_button(v, "Resume", func(): main.resume())
+	_button(v, "Restart run", func(): main.restart_run())
+	_button(v, "Music on/off (M)", func(): main.radio.toggle())
+	_button(v, "Quit to menu", func(): main.back_to_menu())
 
 
 func show_pause(on: bool) -> void:
@@ -423,26 +389,51 @@ func _build_summary() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
-	_label(v, "FLIGHT COMPLETE", 22, ACCENT)
+	_label(v, "TIME'S UP", 28, ACCENT)
 	_summary_label = RichTextLabel.new()
 	_summary_label.bbcode_enabled = true
 	_summary_label.fit_content = true
-	_summary_label.custom_minimum_size = Vector2(380, 120)
+	_summary_label.custom_minimum_size = Vector2(380, 90)
+	_summary_label.add_theme_font_size_override("normal_font_size", 15)
 	v.add_child(_summary_label)
-	_button(v, "Back to menu", func():
-		_summary.visible = false
-		main.back_to_menu()
-		refresh_scores())
+	var nrow := HBoxContainer.new()
+	v.add_child(nrow)
+	_summary_name = LineEdit.new()
+	_summary_name.placeholder_text = "Your name"
+	_summary_name.max_length = 10
+	_summary_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nrow.add_child(_summary_name)
+	_post_button = _button(nrow, "Post score", func(): main.post_score())
+	var brow := HBoxContainer.new()
+	brow.add_theme_constant_override("separation", 8)
+	v.add_child(brow)
+	var again := _button(brow, "PLAY AGAIN", func(): main.restart_run(), true)
+	again.add_theme_stylebox_override("normal", _style(ACCENT, 12))
+	again.add_theme_stylebox_override("hover", _style(ACCENT.lightened(0.15), 12))
+	again.add_theme_color_override("font_color", Color(0.1, 0.07, 0.0))
+	again.custom_minimum_size = Vector2(180, 50)
+	_button(brow, "Keep flying", func(): main.keep_flying())
+	_button(brow, "Menu", func(): main.back_to_menu())
 
 
-func show_summary(result: Dictionary, board) -> void:
+func show_summary(result: Dictionary) -> void:
 	_summary.visible = true
-	var t := "[b]%s[/b]\nScore: %d  (%d rings, best combo x%d)\nDistance: %.1f km\nTime: %d:%02d\nTop speed: %d km/h · Max %.1f G\n" % [
-		result.place, int(result.get("score", 0)), int(result.get("rings", 0)), int(result.get("best_combo", 0)), result.distance / 1000.0, int(result.time) / 60, int(result.time) % 60, int(result.top_speed * 3.6), result.max_g]
-	if board == null:
-		t += "[color=#aabbb0]Posting score…[/color]"
-	elif board is Array and board.size() > 0:
-		t += "[color=#aabbb0]Posted to the leaderboard.[/color]"
-	else:
-		t += "[color=#aabbb0]Leaderboard unavailable.[/color]"
-	_summary_label.text = t
+	_post_button.disabled = false
+	_post_button.text = "Post score"
+	_summary_name.text = main.pilot_name
+	_summary_label.text = "[b]%s[/b]\nScore [color=#ffd76a]%d[/color]\n%d rings · best combo x%d · %d km/h top speed\n" % [
+		result.place, int(result.score), int(result.rings), int(result.best_combo), int(result.top_speed * 3.6)]
+
+
+func summary_name() -> String:
+	var n := _summary_name.text.strip_edges()
+	return n if n != "" else "PILOT"
+
+
+func mark_posted(ok: bool) -> void:
+	_post_button.disabled = true
+	_post_button.text = "Posted!" if ok else "Offline"
+
+
+func hide_summary() -> void:
+	_summary.visible = false

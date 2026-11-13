@@ -5,9 +5,9 @@ class_name RingCourse
 ## builds a combo; missing one breaks it. The course keeps regenerating so
 ## there is always something to chase.
 
-const RING_RADIUS := 40.0
-const SPACING := 420.0
-const COUNT := 12
+const RING_RADIUS := 55.0
+const SPACING := 380.0
+const COUNT := 10
 
 var aircraft: Aircraft
 var tiles: GoogleTiles
@@ -23,6 +23,7 @@ var _mat_next: StandardMaterial3D
 var _mat_far: StandardMaterial3D
 var _mat_hit: StandardMaterial3D
 var _next_index := 0
+var last_hit_position := Vector3.ZERO
 
 signal ring_passed(points: int, combo: int)
 signal ring_missed
@@ -30,7 +31,7 @@ signal ring_missed
 
 func _ready() -> void:
 	var tm := TorusMesh.new()
-	tm.inner_radius = RING_RADIUS - 3.0
+	tm.inner_radius = RING_RADIUS - 4.5
 	tm.outer_radius = RING_RADIUS
 	tm.rings = 24
 	tm.ring_segments = 12
@@ -62,13 +63,13 @@ func start() -> void:
 	rings_missed = 0
 	active = true
 	_next_index = 0
-	var pos: Vector3 = aircraft.position + (-aircraft.basis.z) * 500.0
 	var dir: Vector3 = -aircraft.basis.z
 	dir.y = 0.0
 	dir = dir.normalized()
+	var pos: Vector3 = aircraft.position + dir * 450.0
 	for i in range(COUNT):
 		_add_ring(pos, dir)
-		var step := _advance(pos, dir)
+		var step := _advance(pos, dir, i < 2)
 		pos = step[0]
 		dir = step[1]
 
@@ -82,8 +83,8 @@ func clear() -> void:
 
 ## Next position/direction: wander in heading, gentle altitude changes, and
 ## stay a sane height above whatever terrain we know about.
-func _advance(pos: Vector3, dir: Vector3) -> Array:
-	var turn := randf_range(-0.22, 0.22)
+func _advance(pos: Vector3, dir: Vector3, straight: bool = false) -> Array:
+	var turn := 0.0 if straight else randf_range(-0.22, 0.22)
 	var ndir := dir.rotated(Vector3.UP, turn)
 	var npos := pos + ndir * SPACING
 	npos.y += randf_range(-60.0, 70.0)
@@ -122,7 +123,8 @@ func _process(delta: float) -> void:
 	var lateral: float = (rel - nxt.dir * along).length()
 	if along > 0.0:
 		# Crossed the ring plane this frame.
-		if lateral < RING_RADIUS + 6.0:
+		if lateral < RING_RADIUS + 8.0:
+			last_hit_position = nxt.pos
 			_hit(nxt)
 		else:
 			_miss(nxt)
@@ -159,6 +161,14 @@ func _retire(r: Dictionary) -> void:
 	var last: Dictionary = rings[-1] if rings.size() > 0 else r
 	var step := _advance(last.pos, last.dir)
 	_add_ring(step[0], step[1])
+
+
+## After a floating-origin rebase every ring position must move with it.
+func rebase(rot: Basis) -> void:
+	for r in rings:
+		r.pos = rot * r.pos
+		r.dir = rot * r.dir
+		(r.node as MeshInstance3D).global_position = r.pos
 
 
 func next_ring_position() -> Vector3:

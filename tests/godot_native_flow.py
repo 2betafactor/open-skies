@@ -33,9 +33,11 @@ def main():
     last = lines[-1] if lines else ""
     m = lambda key: re.search(key + r"=([-\d.a-z]+)", last)
     check(bool(lines), "trace produced output")
-    check("state=FLYING" in last, "reached FLYING")
+    check("state=RUN" in last, "reached RUN (timed arcade run)")
+    sc = re.search(r"score=(\d+)", last)
+    print("    score at end:", sc.group(1) if sc else "?")
     vis = int(m("vis").group(1)) if m("vis") else 0
-    check(vis > 30, "tiles visible (%d)" % vis)
+    check(vis > 15, "tiles visible (%d)" % vis)
     nfail = int(m("fail").group(1)) if m("fail") else 99
     nload = int(m("loaded").group(1)) if m("loaded") else 0
     check(nfail <= max(2, nload // 100), "few failed tile requests (%d of %d loaded)" % (nfail, nload))

@@ -11,38 +11,31 @@ still served at `/classic`.
 
 ## Godot version (default at `/`)
 
-- **Arcade by default** — point and go: wings level themselves, the engine
-  manages itself (hold `Shift` for boost, `Space` to brake), no stalls, and a
-  **Ring Run** course of glowing rings laid out ahead of you with score and
-  combos. Loops (`R`) and barrel rolls (`T`) score bonus points. Switch to
-  *Pro* for the full fly-by-wire (neutral stick holds altitude through turns,
-  auto-coordinated rudder, angle-of-attack and G limiters) or *Sim* for raw
-  control surfaces (`B` cycles).
-- **Flight model** — six-degree-of-freedom: lift/drag with a soft stall,
-  moments from stability derivatives, throttle spool, altitude-dependent air
-  density, trimesh collision against the streamed city.
-- **Four aircraft** — Typhoon (canard-delta fighter), Tomcat (swing wings
-  that sweep back with speed), Sabre (1950s classic) and Nova (vectored-thrust
-  scout ship), each with its own mass, aerodynamics, thrust and engine sound.
-- **World** — `godot/scripts/tiles.gd` streams Google Photorealistic 3D Tiles
-  in pure GDScript: a full bubble around the spawn is preloaded before
-  takeoff, a look-ahead bubble prefetches where you are heading, decoding is
-  budgeted per frame, and the tiles around the aircraft carry collision.
-- **Mobile** — touch controls (virtual stick, boost/brake slider, buttons),
-  UI that scales with the screen, and lighter tile settings on phones.
-- **Cameras** — chase (spring-damped, partial roll follow, mouse orbit),
-  cockpit, and fly-by (`C`). HUD with pitch ladder, heading tape, flight-path
-  marker, speed/altitude/AGL, boost, score and a pointer to the next ring.
-- **Music** — Nightride FM streams on takeoff (`M` toggles) on top of the
-  procedural engine/wind layer.
-- **Leaderboard** — finish a flight from the pause menu (`Esc`) to post your
-  distance to the shared board.
+**Open Skies is an arcade ring run over the real world.** Pick a city, pick a
+plane, hit PLAY. Fly through the gold rings before the clock runs out: every
+ring adds time and score, chaining them builds a combo multiplier, loops and
+barrel rolls pay bonus points. Crashing costs five seconds and respawns you
+in place. When time is up, post your score and play again instantly.
 
-### Controls
-`W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Space` air
-brake · `L` level · `B` assist · `R` loop · `T` barrel roll · `C` camera ·
-`H` HUD · `M` radio · drag the mouse to look around · `Esc` pause / finish.
-Gamepads work too (left stick, bumpers for rudder, triggers for throttle).
+- **Controls**: arrows or `WASD` steer (the plane levels itself and manages
+  its own engine), hold `Shift` to boost, `Space` to brake, `R` loop, `T`
+  barrel roll, `C` camera, `M` music, `Esc` pause. Phones get a virtual stick,
+  a boost/brake slider and buttons.
+- **Four planes**: Typhoon (razor roll rate), Tomcat (swing wings), Sabre
+  (forgiving classic) and Nova (vectored-thrust ship) — real-world sizes,
+  bright arcade paint, afterburner flames and wingtip trails.
+- **World**: Google Photorealistic 3D Tiles streamed by `godot/scripts/tiles.gd`
+  (pure GDScript): a bubble around the spawn is preloaded before the run, a
+  look-ahead bubble prefetches where you are heading, decoding is budgeted per
+  frame, and nearby tiles carry collision. Quality is auto-detected (lighter on
+  phones); `?quality=Performance|Balanced|Quality` overrides it.
+- **Juice**: ring bursts, screen flash, floating score pop-ups, speed lines,
+  camera kicks, synthesised sound effects, Nightride FM under the engine.
+- **Leaderboard**: top scores are shared through the Python server.
+
+Under the hood the flight model is still a real six-degree-of-freedom
+simulation with a fly-by-wire layer; the arcade law on top auto-levels,
+auto-throttles and prevents stalls so it feels like a game, not a sim.
 
 ### Build & run
 ```bash
@@ -71,7 +64,7 @@ Music: [Nightride FM](https://nightride.fm).
 
 ### Tests
 ```bash
-godot/tests: godot --headless --path godot tests/flight_test.tscn -- --vehicle=aerion   # physics + fly-by-wire
+godot/tests: godot --headless --path godot tests/flight_test.tscn -- --vehicle=typhoon  # physics + fly-by-wire + arcade
              godot --headless --path godot tests/tile_test.tscn                        # tile streaming (network)
 godot --headless --path godot -- --server=http://localhost:8000 --autostart=1 --trace=1 --seconds=30
 python3 tests/godot_web_smoke.py   # plays the exported web build in headless Chromium (slow: software GL)

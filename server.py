@@ -53,7 +53,7 @@ def flight_entry(fid):
 
 def top_scores():
     with LOCK:
-        top = sorted(load(), key=lambda x: -x.get("distanceKm", 0))[:20]
+        top = sorted(load(), key=lambda x: (-x.get("score", 0), -x.get("distanceKm", 0)))[:20]
     return [{k: v for k, v in e.items() if k != "path"} for e in top]
 
 
@@ -62,7 +62,7 @@ def submit_score(data):
     try:
         if not isinstance(data, dict):
             raise ValueError("expected object")
-        for key in ("distanceKm", "timeSec", "topSpeedKmh"):
+        for key in ("distanceKm", "timeSec", "topSpeedKmh", "score"):
             value = data.get(key, 0)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
                 raise ValueError("invalid statistic")
@@ -84,6 +84,7 @@ def submit_score(data):
     entry = {
         "id": uuid.uuid4().hex[:8],
         "name": name.upper(),
+        "score": int(float(data.get("score", 0) or 0)),
         "distanceKm": round(float(data.get("distanceKm", 0) or 0), 2),
         "timeSec": int(float(data.get("timeSec", 0) or 0)),
         "topSpeedKmh": int(float(data.get("topSpeedKmh", 0) or 0)),
@@ -93,10 +94,10 @@ def submit_score(data):
     }
     with LOCK:
         # Always retain the flight whose share link we return, even below the leaderboard.
-        scores = sorted(load(), key=lambda x: -x.get("distanceKm", 0))[:299]
+        scores = sorted(load(), key=lambda x: (-x.get("score", 0), -x.get("distanceKm", 0)))[:299]
         scores.append(entry)
         save(scores)
-        top = sorted(scores, key=lambda x: -x.get("distanceKm", 0))[:20]
+        top = sorted(scores, key=lambda x: (-x.get("score", 0), -x.get("distanceKm", 0)))[:20]
     return {"id": entry["id"], "board": [{k: v for k, v in e.items() if k != "path"} for e in top]}
 
 

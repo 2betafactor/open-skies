@@ -24,7 +24,7 @@ with sync_playwright() as p:
         snap = None
         while time.time() < deadline:
             snap = page.evaluate("window.openskies()")
-            if snap["state"] == "FLYING":
+            if snap["state"] in ("RUN", "FREE"):
                 break
             time.sleep(2)
         time.sleep(6)

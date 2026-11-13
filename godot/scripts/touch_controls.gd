@@ -124,7 +124,7 @@ func _press(action: String) -> void:
 		"barrel_roll": main.aircraft.start_maneuver("roll")
 		"camera": main.camera.cycle_mode()
 		"menu":
-			if main.state == main.State.FLYING:
+			if main.state == main.State.RUN or main.state == main.State.FREE:
 				main.pause()
 			elif main.state == main.State.PAUSED:
 				main.resume()

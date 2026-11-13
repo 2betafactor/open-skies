@@ -14,7 +14,7 @@ var _smooth_basis := Basis()
 var _pos_vel := Vector3.ZERO
 var _flyby_pos := Vector3.ZERO
 var _flyby_timer := 0.0
-var base_fov := 58.0
+var base_fov := 60.0
 var _shake := 0.0
 
 
@@ -77,7 +77,7 @@ func _process(delta: float) -> void:
 		if _orbit_release < 0.0:
 			orbit = orbit.lerp(Vector2.ZERO, 1.0 - exp(-delta * 3.0))
 	var speed := target.airspeed
-	var want_fov: float = base_fov + clamp((speed - 140.0) / 220.0, 0.0, 1.0) * 10.0 + (6.0 if target.boost > 0.5 else 0.0)
+	var want_fov: float = base_fov + clamp((speed - 140.0) / 220.0, 0.0, 1.0) * 8.0 + 10.0 * target.boost
 	if mode == Mode.COCKPIT:
 		want_fov += 8.0
 	fov = lerp(fov, want_fov, 1.0 - exp(-delta * 2.0))
@@ -117,11 +117,11 @@ func _update_chase(delta: float) -> void:
 	# Ease the reference basis so quick rolls don't yank the camera.
 	var q_from := _smooth_basis.get_rotation_quaternion()
 	var q_to := target.basis.get_rotation_quaternion()
-	var k := 1.0 - exp(-delta * 5.0)
+	var k := 1.0 - exp(-delta * 7.0)
 	_smooth_basis = Basis(q_from.slerp(q_to, k))
 	var want := _chase_transform()
 	# Critically damped spring on position: snappy but never jittery.
-	var stiffness := 40.0
+	var stiffness := 55.0
 	var damping := 2.0 * sqrt(stiffness)
 	var disp := global_position - want.origin
 	_pos_vel += (-stiffness * disp - damping * _pos_vel) * delta
