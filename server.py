@@ -4,8 +4,9 @@
 # - Injects the Google Maps key from $GOOGLE_MAPS_API_KEY into /config.js, so the
 #   key lives in env vars, not in the repo.
 # - Stores scores in $DATA_DIR (attach a Railway volume there to persist them).
-import json, os, threading, uuid, math
-from urllib.parse import urlsplit
+import json, os, re, threading, uuid, math
+from urllib.parse import urlsplit, urlencode, parse_qs
+from urllib.request import urlopen
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -99,11 +100,87 @@ def submit_score(data):
     return {"id": entry["id"], "board": [{k: v for k, v in e.items() if k != "path"} for e in top]}
 
 
+def api_key():
+    """The Google Maps key: env var in production, config.js locally."""
+    if API_KEY:
+        return API_KEY
+    try:
+        with open(os.path.join(BASE, "config.js")) as f:
+            m = re.search(r"AIza[A-Za-z0-9_\-]+", f.read())
+            return m.group(0) if m else ""
+    except FileNotFoundError:
+        return ""
+
+
+def search_places(query):
+    """Geocode a free-text place via the Google Geocoding API.
+    Returns [{name, lat, lon}] (at most 6). The key stays server side."""
+    q = (query or "").strip()
+    if not q or len(q) > 200:
+        return []
+    key = api_key()
+    if not key:
+        return []
+    url = "https://maps.googleapis.com/maps/api/geocode/json?" + urlencode({"address": q, "key": key})
+    try:
+        with urlopen(url, timeout=8) as r:
+            data = json.loads(r.read().decode())
+    except Exception:
+        return []
+    out = []
+    for res in data.get("results", [])[:6]:
+        loc = res.get("geometry", {}).get("location", {})
+        if "lat" in loc and "lng" in loc:
+            out.append({"name": res.get("formatted_address", q), "lat": loc["lat"], "lon": loc["lng"]})
+    return out
+
+
+PLAY_DIR = os.path.join(BASE, "play")   # Godot web export (see godot/build.sh)
+
+
+def play_available():
+    return os.path.isfile(os.path.join(PLAY_DIR, "index.html"))
+
+
+def read_static(full, accept_encoding=""):
+    """Read a static file; prefer a pre-compressed `.gz` sibling (the Godot
+    wasm is ~40 MB raw, ~10 MB gzipped) when the client accepts gzip. Only
+    the .gz files are committed/deployed, so if the raw file is missing the
+    gzip is served regardless (every browser understands it)."""
+    gz = full + ".gz"
+    if os.path.isfile(gz) and ("gzip" in (accept_encoding or "") or not os.path.isfile(full)):
+        with open(gz, "rb") as f:
+            return f.read(), "gzip"
+    with open(full, "rb") as f:
+        return f.read(), None
+
+
+def static_exists(full):
+    return os.path.isfile(full) or os.path.isfile(full + ".gz")
+
+
 def static_allowed(path):
     """Serve only public game assets, never source data or repository files."""
-    if ".." in path or "%" in path or (path.endswith("/") and path != "/"):
+    if ".." in path or "%" in path or (path.endswith("/") and path not in ("/", "/play/")):
         return False
-    return path in ("/", "/index.html", "/style.css", "/favicon.ico") or path.startswith(("/src/", "/assets/"))
+    return path in ("/", "/index.html", "/style.css", "/favicon.ico", "/classic", "/play/") or path.startswith(("/src/", "/assets/", "/play/"))
+
+
+def redirect_target(path):
+    """The Godot build lives under /play/ (its asset URLs are relative), so
+    the root redirects there when a build exists; the Cesium app is /classic."""
+    if path == "/" and play_available():
+        return "/play/"
+    return None
+
+
+def resolve_static(path):
+    """Map a URL path to a file under BASE."""
+    if path == "/" or path == "/classic":
+        return os.path.join(BASE, "index.html")
+    if path == "/play/":
+        return os.path.join(PLAY_DIR, "index.html")
+    return os.path.join(BASE, path.lstrip("/"))
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -150,9 +227,39 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(entry or {"error": "not found"}, 200 if entry else 404)
         if urlsplit(self.path).path == "/api/scores":
             return self._json(top_scores())
-        if not static_allowed(urlsplit(self.path).path):
+        if urlsplit(self.path).path == "/api/config":
+            return self._json({"key": api_key()})
+        if urlsplit(self.path).path == "/api/search":
+            q = (parse_qs(urlsplit(self.path).query).get("q") or [""])[0]
+            return self._json({"results": search_places(q)})
+        path = urlsplit(self.path).path
+        target = redirect_target(path)
+        if target:
+            self.send_response(302)
+            self.send_header("Location", target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if not static_allowed(path):
             return self._json({"error": "not found"}, 404)
-        return super().do_GET()
+        full = resolve_static(path)
+        if not static_exists(full):
+            return self._json({"error": "not found"}, 404)
+        return self._send_file(full)
+
+    def _send_file(self, full):
+        ctype = self.guess_type(full)
+        if full.endswith(".wasm"):
+            ctype = "application/wasm"
+        body, encoding = read_static(full, self.headers.get("Accept-Encoding", ""))
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
+            self.send_header("Vary", "Accept-Encoding")
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_POST(self):
         if urlsplit(self.path).path == "/api/scores":

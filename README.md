@@ -1,12 +1,72 @@
 # ✈️ Open Skies
 
-Fly a plane over **photorealistic 3D of the real world** — search any location (or
-pick a preset) and take off over Google's Photorealistic 3D Tiles, rendered with
-**CesiumJS**. Finish a flight to post your **distance flown** to a shared **leaderboard**, and
-every flight is **recorded** so you can share a link that **replays** it.
+Fly a plane over **photorealistic 3D of the real world** — pick any place on
+Earth and take off over Google's Photorealistic 3D Tiles.
 
-Vanilla HTML/CSS/JS front end + a tiny Python standard-library server (static files
-+ leaderboard API). No build step, no framework, no third-party Python packages.
+**Open Skies now runs on the Godot 4.7 engine** (the `godot/` project) with a
+real six-degree-of-freedom flight model and fly-by-wire assists, streamed
+Google 3D Tiles, animated control surfaces, Nightride FM under the engine
+noise, and the shared distance leaderboard. The original CesiumJS version is
+still served at `/classic`.
+
+## Godot version (default at `/`)
+
+- **Flight model** — lift/drag with a soft stall, moments from real stability
+  derivatives, throttle spool, altitude-dependent air density, trimesh
+  collision against the streamed city. Three assist modes (`B`):
+  *Easy* (auto-level + terrain guard), *Normal* (rate-command fly-by-wire:
+  neutral stick holds altitude through turns, auto-coordinated rudder, angle of
+  attack and G limiters), *Sim* (raw control surfaces with an auto-trim wheel).
+  `R` flies a loop, `T` a barrel roll, `L` recovers to level flight.
+- **Three aircraft** — Aerion (executive jet), Cyberwing (strike fighter),
+  Wayfarer (vectored-thrust scout ship) with distinct mass, aerodynamics,
+  thrust and engine sound. Same glTF models as before, with animated ailerons,
+  elevator, rudder / elevons.
+- **World** — `godot/scripts/tiles.gd` streams Google Photorealistic 3D Tiles
+  in pure GDScript: screen-space-error refinement, a worker pool, runtime glTF
+  decoding, double-precision placement with a floating origin, and collision
+  for the tiles around the aircraft. Curvature of the Earth comes for free.
+- **Cameras** — chase (spring-damped, partial roll follow, mouse orbit),
+  cockpit, and fly-by (`C`). HUD with pitch ladder, heading tape, flight-path
+  marker, speed/altitude/AGL boxes, throttle, G and warnings (`H` compacts it).
+- **Music** — Nightride FM streams on takeoff (`M` toggles) on top of the
+  procedural engine/wind layer.
+- **Leaderboard** — finish a flight from the pause menu (`Esc`) to post your
+  distance to the shared board.
+
+### Controls
+`W/S` pitch · `A/D` roll · `Q/E` rudder · `Shift/Ctrl` throttle · `Space` air
+brake · `L` level · `B` assist · `R` loop · `T` barrel roll · `C` camera ·
+`H` HUD · `M` radio · drag the mouse to look around · `Esc` pause / finish.
+Gamepads work too (left stick, bumpers for rudder, triggers for throttle).
+
+### Build & run
+```bash
+# one-time: Godot 4.7.2 editor + export templates
+mkdir -p ~/godot && cd ~/godot
+wget https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip && unzip Godot_v4.7.2-stable_linux.x86_64.zip
+wget https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
+mkdir -p ~/.local/share/godot/export_templates/4.7.2.stable && cd ~/.local/share/godot/export_templates/4.7.2.stable && unzip ../../../godot/Godot_v4.7.2-stable_export_templates.tpz && mv templates/* . && rmdir templates
+
+# export the web build into play/ (served at /), or desktop builds into dist/
+godot/build.sh web        # also: linux | windows | all
+python3 server.py         # http://localhost:8000
+```
+The web build reads the Google key from `/api/config` (env `GOOGLE_MAPS_API_KEY`
+or `config.js`) and geocodes searches through `/api/search`, so the key never
+ships in the client bundle. Desktop builds talk to the hosted server by
+default; pass `--server=https://your.host` or `--key=AIza…` to override.
+Query-string overrides on the web: `?quality=Performance&scale=0.5`.
+
+### Tests
+```bash
+godot/tests: godot --headless --path godot tests/flight_test.tscn -- --vehicle=aerion   # physics + fly-by-wire
+             godot --headless --path godot tests/tile_test.tscn                        # tile streaming (network)
+godot --headless --path godot -- --server=http://localhost:8000 --autostart=1 --trace=1 --seconds=30
+python3 tests/godot_web_smoke.py   # plays the exported web build in headless Chromium (slow: software GL)
+```
+
+## Classic (CesiumJS) version — `/classic`
 
 ## Features
 - Free-flight arcade model over real 3D terrain, with chase / cockpit / profile

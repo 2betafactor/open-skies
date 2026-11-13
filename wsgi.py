@@ -45,6 +45,13 @@ def app(environ, start_response):
     if method == "GET" and path == "/api/scores":
         return _json(start_response, server.top_scores())
 
+    if method == "GET" and path == "/api/config":
+        return _json(start_response, {"key": server.api_key()})
+
+    if method == "GET" and path == "/api/search":
+        qs = parse_qs(environ.get("QUERY_STRING", ""))
+        return _json(start_response, {"results": server.search_places((qs.get("q") or [""])[0])})
+
     if method == "POST" and path == "/api/scores":
         try:
             n = int(environ.get("CONTENT_LENGTH") or 0)
@@ -58,17 +65,24 @@ def app(environ, start_response):
             return _json(start_response, {"error": "bad json"}, "400 Bad Request")
         return _json(start_response, result, "201 Created")
 
+    if method in ("GET", "HEAD") and server.redirect_target(path):
+        start_response("302 Found", [("Location", server.redirect_target(path)), ("Content-Length", "0")])
+        return [b""]
+
     if method in ("GET", "HEAD") and server.static_allowed(path):
-        rel = "index.html" if path == "/" else path.lstrip("/")
-        full = os.path.realpath(os.path.join(server.BASE, rel))
+        full = os.path.realpath(server.resolve_static(path))
         # Containment double-check on top of the allowlist.
         if full == os.path.realpath(server.BASE) or full.startswith(os.path.realpath(server.BASE) + os.sep):
-            if os.path.isfile(full):
+            if server.static_exists(full):
                 ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
-                with open(full, "rb") as f:
-                    body = f.read()
+                if full.endswith(".wasm"):
+                    ctype = "application/wasm"
+                body, encoding = server.read_static(full, environ.get("HTTP_ACCEPT_ENCODING", ""))
                 if method == "HEAD":
                     body = b""
-                return _resp(start_response, "200 OK", body, ctype, [("Cache-Control", "no-cache")])
+                extra = [("Cache-Control", "no-cache")]
+                if encoding:
+                    extra += [("Content-Encoding", encoding), ("Vary", "Accept-Encoding")]
+                return _resp(start_response, "200 OK", body, ctype, extra)
 
     return _json(start_response, {"error": "not found"}, "404 Not Found")
