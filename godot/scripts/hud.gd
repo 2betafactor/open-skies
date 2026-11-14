@@ -9,6 +9,8 @@ var tiles: GoogleTiles
 var camera: FlightCamera
 var enemies: Enemies
 var radio: Radio
+var main: Node
+var outside := false
 var place_name := ""
 var mobile := false
 var score := 0
@@ -114,6 +116,13 @@ func _on_draw() -> void:
 		var lx := 22.0 + i * 18.0
 		c.draw_colored_polygon(PackedVector2Array([Vector2(lx, 28.0), Vector2(lx - 6.0, 40.0), Vector2(lx, 37.0), Vector2(lx + 6.0, 40.0)]), COL)
 	c.draw_string(_font, Vector2(16.0, 54.0), place_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, COL_DIM)
+	if main != null and main.guns != null:
+		var n: int = main.guns.rockets
+		for i in range(Guns.ROCKET_MAX):
+			var rx := 20.0 + i * 14.0
+			var col := COL_GOLD if i < n else Color(1, 1, 1, 0.18)
+			c.draw_colored_polygon(PackedVector2Array([Vector2(rx, 62.0), Vector2(rx - 3.5, 70.0), Vector2(rx - 3.5, 78.0), Vector2(rx + 3.5, 78.0), Vector2(rx + 3.5, 70.0)]), col)
+		c.draw_string(_font, Vector2(16.0 + Guns.ROCKET_MAX * 14.0 + 4.0, 76.0), "ROCKETS" + ("" if mobile else "  E / right-click"), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, COL_DIM)
 
 	# Speed + boost (bottom left; bottom centre-left on phones).
 	var bl_y := size.y - (26.0 if mobile else 40.0)
@@ -132,6 +141,10 @@ func _on_draw() -> void:
 		c.draw_line(ap + Vector2(-16.0, 0.0), ap + Vector2(-10.0, 0.0), COL, 1.5)
 		c.draw_line(ap + Vector2(16.0, 0.0), ap + Vector2(10.0, 0.0), COL, 1.5)
 	_draw_enemies(c, Vector2(cx, cy), size)
+	_draw_radar(c, Vector2(cx, top + 90.0))
+	if outside:
+		var a := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.01)
+		c.draw_string(_font, Vector2(cx - 200.0, cy - 60.0), "RETURN TO THE FIGHT", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 26, Color(COL_RED, a))
 
 	# Warnings and announcements.
 	if not is_nan(tm.agl) and tm.agl < 70.0 and tm.vs < -10.0:
@@ -139,7 +152,7 @@ func _on_draw() -> void:
 		c.draw_string(_font, Vector2(cx - 100.0, cy + 90.0), "PULL UP", HORIZONTAL_ALIGNMENT_CENTER, 200.0, 26, Color(COL_RED, a))
 	if _announce_t > 0.0:
 		var k: float = min(_announce_t / 0.4, 1.0)
-		c.draw_string(_font, Vector2(cx - 250.0, cy - 110.0), _announce, HORIZONTAL_ALIGNMENT_CENTER, 500.0, 40, Color(COL_GOLD, k))
+		c.draw_string(_font, Vector2(cx - 250.0, cy - 100.0), _announce, HORIZONTAL_ALIGNMENT_CENTER, 500.0, 40, Color(COL_GOLD, k))
 	for p in _pops:
 		var k: float = p.t / 1.4
 		var col: Color = p.col
@@ -160,7 +173,7 @@ func _on_draw() -> void:
 func _draw_enemies(c: Control, centre: Vector2, size: Vector2) -> void:
 	if camera == null or enemies == null:
 		return
-	var nearest: Dictionary = enemies.nearest(aircraft.position, 5000.0)
+	var nearest: Dictionary = main.locked if (main != null and not main.locked.is_empty()) else enemies.nearest(aircraft.position, 5000.0)
 	for s in enemies.ships:
 		var p: Vector3 = s.pos
 		var dist: float = aircraft.position.distance_to(p)
@@ -169,10 +182,21 @@ func _draw_enemies(c: Control, centre: Vector2, size: Vector2) -> void:
 			var sp := camera.unproject_position(p)
 			if sp.x > 0.0 and sp.x < size.x and sp.y > 0.0 and sp.y < size.y:
 				on_screen = true
-				var r: float = clamp(1400.0 / max(dist, 1.0), 10.0, 40.0)
+				var r: float = clamp(1400.0 / max(dist, 1.0), 12.0, 44.0)
 				var col := COL_ENEMY if s != nearest else COL_GOLD
-				c.draw_rect(Rect2(sp - Vector2(r, r), Vector2(r * 2.0, r * 2.0)), col, false, 1.5)
-				c.draw_string(_font, sp + Vector2(-40.0, r + 14.0), "%d m" % int(dist), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, col)
+				if s == nearest:
+					# Lock bracket: four corners, pulsing.
+					var k: float = r + 4.0 + 3.0 * sin(Time.get_ticks_msec() * 0.008)
+					var l: float = k * 0.5
+					for sx in [-1.0, 1.0]:
+						for sy in [-1.0, 1.0]:
+							var corner := sp + Vector2(sx * k, sy * k)
+							c.draw_line(corner, corner - Vector2(sx * l, 0.0), col, 2.5)
+							c.draw_line(corner, corner - Vector2(0.0, sy * l), col, 2.5)
+					c.draw_string(_font, sp + Vector2(-50.0, k + 16.0), "%d m" % int(dist), HORIZONTAL_ALIGNMENT_CENTER, 100.0, 13, col)
+				else:
+					c.draw_rect(Rect2(sp - Vector2(r, r), Vector2(r * 2.0, r * 2.0)), col, false, 1.5)
+					c.draw_string(_font, sp + Vector2(-40.0, r + 14.0), "%d m" % int(dist), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, col)
 				if s == nearest and dist < 1800.0:
 					# Lead pip: where the bullets would meet it.
 					var t: float = dist / (Guns.SPEED + aircraft.airspeed)
@@ -190,6 +214,25 @@ func _draw_enemies(c: Control, centre: Vector2, size: Vector2) -> void:
 			var tip := q + dir * 14.0
 			var side := Vector2(-dir.y, dir.x) * 8.0
 			c.draw_colored_polygon(PackedVector2Array([tip, q + side, q - side]), COL_ENEMY if s != nearest else COL_GOLD)
+
+
+## Small radar: enemies around you, relative to your heading (up = ahead).
+func _draw_radar(c: Control, centre: Vector2) -> void:
+	if enemies == null:
+		return
+	var rr := 34.0
+	c.draw_circle(centre, rr, Color(0, 0, 0, 0.28))
+	c.draw_arc(centre, rr, 0.0, TAU, 32, COL_DIM, 1.0)
+	c.draw_line(centre + Vector2(0, -rr), centre + Vector2(0, -rr + 6.0), COL_DIM, 1.0)
+	c.draw_colored_polygon(PackedVector2Array([centre + Vector2(0, -4), centre + Vector2(-3, 3), centre + Vector2(3, 3)]), COL)
+	var range_m := 2500.0
+	var nearest: Dictionary = main.locked if (main != null and not main.locked.is_empty()) else {}
+	for s in enemies.ships:
+		var local: Vector3 = aircraft.basis.inverse() * (s.pos - aircraft.position)
+		var v := Vector2(local.x, local.z)   # +z is behind
+		var d: float = v.length()
+		var p: Vector2 = centre + (v / range_m * rr if d < range_m else v.normalized() * rr)
+		c.draw_circle(p, 3.5 if s == nearest else 2.5, COL_GOLD if s == nearest else COL_ENEMY)
 
 
 func _draw_speed_lines(c: Control, centre: Vector2, size: Vector2, amount: float) -> void:

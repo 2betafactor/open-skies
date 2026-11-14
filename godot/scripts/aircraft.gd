@@ -428,6 +428,14 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 			if abs(bank) < deg_to_rad(2.0) and abs(pitch) < deg_to_rad(2.0):
 				_end_maneuver()
 
+	# Arcade: never bank past ~75 deg (a knife-edge drops the nose); loops and
+	# rolls are scripted so they still work.
+	if assist == Assist.ARCADE and _maneuver == "":
+		var lim := deg_to_rad(75.0)
+		if bank > lim and target_p > 0.0:
+			target_p = -(bank - lim) * 2.0
+		elif bank < -lim and target_p < 0.0:
+			target_p = -(bank + lim) * 2.0
 	# Arcade: wings level themselves when the stick is centred, and the nose
 	# drifts back to the horizon — point and go.
 	if assist == Assist.ARCADE and _maneuver == "":

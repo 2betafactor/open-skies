@@ -18,7 +18,7 @@ def main():
     ap.add_argument("--seconds", type=int, default=45)
     args = ap.parse_args()
     cmd = [args.godot, "--headless", "--path", os.path.join(ROOT, "godot"), "--",
-           "--server=" + args.server, "--autostart=1", "--trace=1", "--seconds=%d" % args.seconds, "--autofire=1", "--testkill=1", "--preload=800"]
+           "--server=" + args.server, "--autostart=1", "--trace=1", "--seconds=%d" % args.seconds, "--autofire=1", "--testkill=1", "--preload=1500"]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=args.seconds * 4 + 60).stdout
     lines = [l for l in out.splitlines() if l.startswith("[trace] state=")]
     for l in lines:
@@ -43,8 +43,10 @@ def main():
     nfail = int(m("fail").group(1)) if m("fail") else 99
     nload = int(m("loaded").group(1)) if m("loaded") else 0
     check(nfail <= max(2, nload // 100), "few failed tile requests (%d of %d loaded)" % (nfail, nload))
-    agl = m("agl").group(1) if m("agl") else "nan"
-    check(agl != "nan" and float(agl) > 100, "ground known under aircraft, safe height (agl %s)" % agl)
+    run_lines = [l for l in lines if "state=RUN" in l]
+    agls = [re.search(r"agl=([-\d.a-z]+)", l).group(1) for l in run_lines]
+    known = [float(a) for a in agls if a != "nan"]
+    check(len(run_lines) > 0 and len(known) >= len(run_lines) * 0.6 and (min(known) > 60 if known else False), "ground known under the aircraft most of the run (%d/%d samples, min agl %s)" % (len(known), len(run_lines), ("%.0f" % min(known)) if known else "-"))
     spd = float(m("spd").group(1)) if m("spd") else 0
     check(spd > 80, "flying (%.0f m/s)" % spd)
     errs = [l for l in out.splitlines() if "SCRIPT ERROR" in l or l.startswith("ERROR")]

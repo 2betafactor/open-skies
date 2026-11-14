@@ -30,7 +30,11 @@ const YUP_TO_ZUP := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 @export var lookahead_seconds := 18.0  # prefetch where the aircraft will be
 @export var decode_budget_ms := 7.0    # per-frame glTF decode budget
 var preload_radius := 0.0              # > 0 while preparing: load a full bubble first
+var horizon_radius := 0.0              # > 0 while preparing: coarse ring beyond the arena
+var horizon_ge := 700.0
 var lookahead_velocity := Vector3.ZERO
+var frozen := false                    # arena locked: no streaming at all
+var _static_timer := 0.0
 
 var camera: Camera3D
 var focus: Node3D                       # aircraft; drives collision radius
@@ -115,6 +119,59 @@ func loading_progress() -> float:
 	return float(have) / float(have + pending)
 
 
+## Lock the arena: compute a static visibility set from what is loaded
+## (REPLACE rule, no camera) and stop all streaming. Cheap and stable.
+func freeze_arena() -> void:
+	frozen = true
+	preload_radius = 0.0
+	horizon_radius = 0.0
+	_queue.clear()
+	_decode_queue.clear()
+	var shown: Dictionary = {}
+	_static_select(root_tile, shown)
+	var now := Time.get_ticks_msec() * 0.001
+	for t in _loaded:
+		var vis: bool = shown.has(t.id)
+		t.node.visible = vis
+		t.last_wanted = now
+	_visible_now = shown
+	_bubble_now = shown
+	_refresh_static_collision()
+
+
+func unfreeze() -> void:
+	frozen = false
+	_select_timer = 0.0
+
+
+func _static_select(t: Dictionary, shown: Dictionary) -> void:
+	if t.children.size() > 0:
+		var all_ready := true
+		for c in t.children:
+			if c.uri == "" and c.children.is_empty() and (c.sub_uri == "" or c.sub_loaded):
+				continue
+			if c.uri != "" and c.state != S_LOADED:
+				all_ready = false
+				break
+			if c.sub_uri != "" and not c.sub_loaded:
+				all_ready = false
+				break
+		if all_ready:
+			for c in t.children:
+				_static_select(c, shown)
+			return
+	if t.uri != "" and t.state == S_LOADED:
+		shown[t.id] = t
+
+
+func _refresh_static_collision() -> void:
+	if focus == null:
+		return
+	for t in _loaded:
+		if _visible_now.has(t.id):
+			_update_collision(t, true)
+
+
 ## True once nothing is queued, in flight or waiting to decode.
 func idle() -> bool:
 	return _queue.is_empty() and _busy.is_empty() and _decode_queue.is_empty()
@@ -124,6 +181,13 @@ func idle() -> bool:
 
 func _process(delta: float) -> void:
 	if root_tile.is_empty() or camera == null:
+		return
+	if frozen:
+		_decode_some()
+		_static_timer -= delta
+		if _static_timer <= 0.0:
+			_static_timer = 0.5
+			_refresh_static_collision()
 		return
 	_select_timer -= delta
 	if _select_timer <= 0.0:
@@ -171,6 +235,11 @@ func _select() -> void:
 		var fp := focus.global_position
 		var r: float = preload_radius if preload_radius > 0.0 else collision_radius
 		_traverse_bubble(root_tile, fp, r, bubble, bubble_loads)
+		if horizon_radius > 0.0:
+			var saved := bubble_ge
+			bubble_ge = horizon_ge
+			_traverse_bubble(root_tile, fp, horizon_radius, bubble, bubble_loads)
+			bubble_ge = saved
 		if preload_radius <= 0.0 and lookahead_velocity.length() > 30.0:
 			var ahead: Vector3 = fp + lookahead_velocity * lookahead_seconds
 			_traverse_bubble(root_tile, ahead, collision_radius * 1.2, bubble, bubble_loads)
@@ -272,7 +341,19 @@ func _traverse_bubble(t: Dictionary, centre: Vector3, radius: float, out: Dictio
 		return
 	if t.ge > bubble_ge and t.children.size() > 0:
 		for c in t.children:
-			_traverse_bubble(c, centre, radius, out, loads)
+			_ensure_local(c)
+			if _distance(c, centre) <= radius:
+				_traverse_bubble(c, centre, radius, out, loads)
+			elif c.uri != "" and c.state != S_LOADED:
+				# Sibling just outside: load it at its own level so the parent
+				# can be replaced inside the arena without leaving a hole.
+				c.priority = _distance(c, centre) + 500.0
+				if c.state != S_LOADING:
+					loads.append(c)
+			elif c.sub_uri != "" and not c.sub_loaded and c.sub_state != S_LOADING:
+				c.priority = _distance(c, centre) + 500.0
+				c.sub_state = S_QUEUED
+				loads.append(c)
 		return
 	if t.uri == "":
 		return
@@ -749,7 +830,7 @@ func debug_collision(at: Vector3) -> Dictionary:
 # ---------------------------------------------------------------- eviction
 
 func _evict(now: float) -> void:
-	if _loaded.size() <= max_loaded_tiles:
+	if frozen or _loaded.size() <= max_loaded_tiles:
 		return
 	var candidates: Array = []
 	for t in _loaded:

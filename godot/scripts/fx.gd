@@ -10,6 +10,7 @@ var _flames: Array[MeshInstance3D] = []
 var _trails: Array[CPUParticles3D] = []
 var _flame_mat: StandardMaterial3D
 var _dot: ImageTexture
+var low_detail := false
 
 
 ## A soft radial dot, generated once; every particle quad uses it.
@@ -162,7 +163,7 @@ func burst(at: Vector3, big: bool = false) -> void:
 	for p in _burst_pool:
 		if not p.emitting:
 			p.global_position = at
-			p.amount = 90 if big else 48
+			p.amount = (40 if big else 24) if low_detail else (90 if big else 48)
 			p.restart()
 			p.emitting = true
 			return

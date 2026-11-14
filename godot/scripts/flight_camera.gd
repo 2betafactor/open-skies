@@ -16,6 +16,8 @@ var _flyby_pos := Vector3.ZERO
 var _flyby_timer := 0.0
 var base_fov := 60.0
 var _shake := 0.0
+var look_target: Vector3 = Vector3.INF   # locked enemy, or INF for none
+var _lean := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -72,10 +74,7 @@ func _unhandled_input_disabled(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if target == null:
 		return
-	if not _dragging:
-		_orbit_release -= delta
-		if _orbit_release < 0.0:
-			orbit = orbit.lerp(Vector2.ZERO, 1.0 - exp(-delta * 3.0))
+	pass
 	var speed := target.airspeed
 	var want_fov: float = base_fov + clamp((speed - 140.0) / 220.0, 0.0, 1.0) * 8.0 + 10.0 * target.boost
 	if mode == Mode.COCKPIT:
@@ -119,6 +118,14 @@ func _update_chase(delta: float) -> void:
 	var q_to := target.basis.get_rotation_quaternion()
 	var k := 1.0 - exp(-delta * 7.0)
 	_smooth_basis = Basis(q_from.slerp(q_to, k))
+	# Lean the view toward the locked target (never more than ~22 deg).
+	var want_lean := Vector2.ZERO
+	if look_target != Vector3.INF:
+		var local: Vector3 = target.basis.inverse() * (look_target - target.position)
+		if local.z < 0.0:
+			want_lean = Vector2(clamp(atan2(local.x, -local.z), -0.4, 0.4), clamp(atan2(local.y, -local.z), -0.3, 0.3))
+	_lean = _lean.lerp(want_lean, 1.0 - exp(-delta * 2.5))
+	orbit = Vector2(-_lean.x, _lean.y)
 	var want := _chase_transform()
 	# Critically damped spring on position: snappy but never jittery.
 	var stiffness := 55.0
@@ -127,7 +134,10 @@ func _update_chase(delta: float) -> void:
 	_pos_vel += (-stiffness * disp - damping * _pos_vel) * delta
 	global_position += _pos_vel * delta
 	# Keep the aircraft in frame no matter what the spring is doing.
-	look_at(target.position + (-target.basis.z) * 25.0, want.basis.y)
+	var ahead: Vector3 = target.position + (-target.basis.z) * 25.0
+	if look_target != Vector3.INF:
+		ahead = ahead.lerp(look_target, 0.08)
+	look_at(ahead, want.basis.y)
 
 
 func _update_cockpit() -> void:

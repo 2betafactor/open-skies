@@ -111,7 +111,8 @@ def main():
         check(snap["tiles"]["failed"] < 5, "few failed tile requests (%d)" % snap["tiles"]["failed"])
         check(tm.get("airspeed", 0) > 60, "aircraft is flying (%.0f m/s)" % tm.get("airspeed", 0))
         check(tm.get("distance", 0) > 500, "distance accumulates (%.0f m)" % tm.get("distance", 0))
-        check(abs(tm.get("pitch", 99)) < 15 and abs(tm.get("bank", 99)) < 15, "hands-off attitude level (pitch %.1f bank %.1f)" % (tm.get("pitch", 0), tm.get("bank", 0)))
+        # Hands-off the plane auto-tracks the locked ship, so only sanity-check the attitude.
+        check(abs(tm.get("pitch", 99)) < 60 and abs(tm.get("bank", 99)) < 88, "attitude sane (pitch %.1f bank %.1f)" % (tm.get("pitch", 0), tm.get("bank", 0)))
         # Software GL runs the game in slow motion, so give the fine tiles
         # under the aircraft (which carry collision) time to stream in.
         agl = tm.get("agl")
@@ -128,12 +129,18 @@ def main():
         check(snap["telemetry"]["altitude"] > 100, "aircraft above ground level (alt %.0f)" % snap["telemetry"]["altitude"])
 
         # Controls: roll right for a second, expect bank.
+        # Sample the bank while D is still held: the arcade auto-level rights
+        # the plane within a fraction of a second after release.
+        page.keyboard.down("a")
+        time.sleep(1.0)
+        page.keyboard.up("a")
         page.keyboard.down("d")
-        time.sleep(0.6)
+        time.sleep(0.5)
+        b0 = page.evaluate("window.openskies()")["telemetry"]["bank"]
+        time.sleep(0.5)
+        b1 = page.evaluate("window.openskies()")["telemetry"]["bank"]
         page.keyboard.up("d")
-        time.sleep(0.4)
-        snap = page.evaluate("window.openskies()")
-        check(snap["telemetry"]["bank"] > 10, "D key rolls right (bank %.0f)" % snap["telemetry"]["bank"])
+        check(b1 > b0 + 5 or b1 > 40, "D key rolls right (bank %.0f -> %.0f)" % (b0, b1))
         page.keyboard.press("l")
         time.sleep(3)
         page.keyboard.press("c")

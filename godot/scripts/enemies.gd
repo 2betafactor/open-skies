@@ -22,6 +22,8 @@ var ships: Array = []        # [{node, pos, vel, speed, hp, wp, t_fire, weave, t
 var bolts: Array = []        # [{node, pos, vel, t}]
 var wave := 0
 var kills := 0
+var arena_centre := Vector3.ZERO
+var arena_radius := 2500.0
 var active := false
 var _packed: PackedScene
 var _bolt_mesh: Mesh
@@ -96,7 +98,7 @@ func _spawn_ship(i: int, n: int) -> void:
 	var pos: Vector3 = aircraft.position + dir * randf_range(900.0, 1600.0) + Vector3(0, randf_range(-150.0, 250.0), 0)
 	pos.y = _safe_alt(pos)
 	var speed: float = randf_range(140.0, 165.0) + float(min(wave, 6)) * 4.0
-	var ship := {"node": node, "pos": pos, "vel": fwd * speed, "speed": speed, "hp": 3.0, "wp": pos, "t_fire": randf_range(1.0, 3.0), "weave": randf() * TAU, "tint": tint[1], "turn": 0.0}
+	var ship := {"node": node, "pos": pos, "vel": fwd * speed, "speed": speed, "hp": 3.0, "wp": pos, "t_fire": randf_range(1.0, 3.0), "weave": randf() * TAU, "tint": tint[1], "turn": 0.0, "hunt": 0.0, "t_mode": randf_range(2.0, 5.0)}
 	ship.wp = _new_waypoint(ship)
 	node.global_position = pos
 	ships.append(ship)
@@ -143,11 +145,16 @@ func _safe_alt(p: Vector3) -> float:
 
 
 func _new_waypoint(s: Dictionary) -> Vector3:
-	# Somewhere around the player so the fight stays over the city.
+	# Around the player, but always inside the arena so the fight stays over
+	# the loaded city.
 	var centre: Vector3 = aircraft.position
 	var a := randf() * TAU
-	var r := randf_range(500.0, 1700.0)
+	var r := randf_range(500.0, 1500.0)
 	var wp := centre + Vector3(cos(a) * r, randf_range(-200.0, 300.0), sin(a) * r)
+	var from_c: Vector3 = wp - arena_centre
+	from_c.y = 0.0
+	if from_c.length() > arena_radius * 0.8:
+		wp = arena_centre + from_c.normalized() * arena_radius * 0.6 + Vector3(0, wp.y - arena_centre.y, 0)
 	wp.y = _safe_alt(wp)
 	return wp
 
@@ -174,16 +181,28 @@ func _step_ship(s: Dictionary, delta: float, pp: Vector3) -> void:
 		s.wp = _new_waypoint(s)
 		to_wp = s.wp - pos
 	var want: Vector3 = to_wp.normalized()
-	# Being chased: weave sideways so they are fun to track.
 	var rel: Vector3 = pp - pos
 	var chased: bool = rel.length() < 900.0 and rel.normalized().dot(s.vel.normalized()) < -0.3
+	# Hunt / cruise mode switching: hunters turn in on the player and shoot.
+	s.t_mode -= delta
+	if s.t_mode <= 0.0:
+		s.t_mode = randf_range(4.0, 7.0)
+		s.hunt = 1.0 if (randf() < 0.55 + min(wave, 5) * 0.06) else 0.0
+	if s.hunt > 0.0 and rel.length() > 250.0:
+		# Aim at where the player will be in a second or so.
+		var lead: Vector3 = pp + aircraft.velocity * 1.2
+		want = (lead - pos).normalized()
+	elif s.hunt > 0.0:
+		# Too close: swing wide to set up another pass.
+		want = (want + s.vel.normalized() * 0.5).normalized()
 	s.weave += delta * (2.2 if chased else 0.8)
 	var side: Vector3 = s.vel.normalized().cross(Vector3.UP)
-	want += side * sin(s.weave) * (0.9 if chased else 0.25) + Vector3(0, cos(s.weave * 0.7) * 0.2, 0)
+	var weave_amt: float = (0.9 if chased else 0.25) * (0.3 if s.hunt > 0.0 else 1.0)
+	want += side * sin(s.weave) * weave_amt + Vector3(0, cos(s.weave * 0.7) * 0.2, 0)
 	want = want.normalized()
 	# Turn toward the wanted direction at a limited rate.
 	var cur: Vector3 = s.vel.normalized()
-	var max_turn := deg_to_rad(50.0 if chased else 35.0) * delta
+	var max_turn := deg_to_rad(55.0 if (chased or s.hunt > 0.0) else 35.0) * delta
 	var angle := cur.angle_to(want)
 	var ndir: Vector3 = cur
 	if s.speed <= 0.0:
@@ -210,10 +229,12 @@ func _step_ship(s: Dictionary, delta: float, pp: Vector3) -> void:
 	# Shoot when the player is ahead and close.
 	s.t_fire -= delta
 	if s.t_fire <= 0.0:
-		s.t_fire = randf_range(1.4, 2.6) - min(wave, 5) * 0.12
+		s.t_fire = randf_range(0.9, 1.8) - min(wave, 5) * 0.1
 		var d: float = rel.length()
-		if d < 750.0 and rel.normalized().dot(fwd) > 0.75:
+		if d < 950.0 and rel.normalized().dot(fwd) > 0.6:
 			_fire_bolt(s, pp)
+			if s.hunt > 0.0 and d < 600.0:
+				s.t_fire *= 0.5   # hunters fire bursts up close
 
 
 func _fire_bolt(s: Dictionary, pp: Vector3) -> void:

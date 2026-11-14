@@ -18,14 +18,22 @@ barrel rolls for bonus points, and dodge their pink bolts. Three lives;
 when they are gone, post your score and play again instantly.
 
 - **Controls**: on desktop the plane flies toward your mouse cursor (arrows or
-  `WASD` also work), `Space` or click fires, hold `Shift` to boost, `R` loop,
-  `T` barrel roll, `C` camera, `M` music, `Esc` pause. On phones you drag
-  anywhere to steer (no stick graphics in the way), with FIRE and BOOST in the
-  bottom-right corner and tiny LOOP / ROLL buttons bottom-left.
-- **Feel**: the plane levels itself, manages its own engine (never lets you
-  bleed into a stall), and bullets bend slightly toward a ship that is nearly
-  on the nose. A lead pip shows where to aim at the nearest ship; arrows at
-  the screen edge point at the rest.
+  `WASD` also work), `Space` or click fires guns, `E` or right-click fires a
+  homing rocket at the locked target, `Tab` cycles targets, hold `Shift` to
+  boost, `R` loop, `T` barrel roll, `C` camera, `M` music, `Esc` pause. On
+  phones: drag anywhere to steer or use the translucent arrow pad, with FIRE,
+  ROCKET and BOOST buttons bottom-right and LOCK / LOOP / ROLL above them.
+- **Tracking**: the nearest ship ahead is locked automatically (gold bracket
+  with distance, a lead pip, a small radar under the score, edge arrows for
+  the rest, and the camera leans toward it). While your thumb or mouse is
+  idle the nose eases toward the lock, so lining up a shot is easy.
+- **Enemies fight back**: hunters turn in on you and fire bursts of pink
+  bolts; waves grow up to six ships. Four rockets that regenerate, one-hit
+  kills.
+- **Arena**: the city around the spawn is loaded once at fighting detail
+  (plus a coarse horizon) and then frozen — no streaming, no level-of-detail
+  popping, no eviction during the fight. Stray outside and the game steers
+  you back.
 - **Four planes**: Typhoon (razor roll rate), Tomcat (swing wings), Sabre
   (forgiving classic) and Nova (vectored-thrust ship), with afterburner
   flames and wingtip trails.

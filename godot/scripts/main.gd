@@ -21,13 +21,15 @@ const PRESETS := [
 ]
 
 const QUALITY := {
-	"Performance": {"sse": 46.0, "far": 45000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 450, "scale": 0.7, "preload": 1500.0},
-	"Balanced": {"sse": 30.0, "far": 80000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 900, "scale": 1.0, "preload": 2000.0},
+	"Performance": {"sse": 46.0, "far": 45000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 900, "scale": 0.6, "preload": 1500.0},
+	"Balanced": {"sse": 30.0, "far": 80000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 1600, "scale": 1.0, "preload": 2000.0},
 	"Quality": {"sse": 18.0, "far": 110000.0, "msaa": Viewport.MSAA_2X, "tiles": 1500, "scale": 1.0, "preload": 3000.0},
 }
 
 const LIVES := 3
 const COMBO_WINDOW := 6.0
+const ARENA_DESKTOP := 3000.0
+const ARENA_MOBILE := 2200.0
 
 var state := State.BOOT
 var tiles: GoogleTiles
@@ -64,6 +66,9 @@ var _rebase_count := 0
 var _spawn_heading := 0.0
 var _spawn_geo: Array = [0.0, 0.0]
 var _resume_state := State.RUN
+var arena_radius := ARENA_DESKTOP
+var locked: Dictionary = {}
+var _outside_timer := 0.0
 var _debug_cb: JavaScriptObject
 var _takeoff_cb: JavaScriptObject
 var _trace_timer := 0.0
@@ -105,6 +110,7 @@ func _ready() -> void:
 	guns.enemies = enemies
 	guns.fx = fx
 	guns.sfx = sfx
+	guns.fx_ref = fx
 	guns.hit_ship.connect(_on_gun_hit)
 	add_child(guns)
 	hud = Hud.new()
@@ -113,6 +119,7 @@ func _ready() -> void:
 	hud.camera = camera
 	hud.radio = radio
 	hud.enemies = enemies
+	hud.main = self
 	add_child(hud)
 	hud.visible = false
 	touch = TouchControls.new()
@@ -222,9 +229,18 @@ func start_flight() -> void:
 	menu.hide_summary()
 	top_speed = 0.0
 	_prep_timer = 0.0
-	tiles.preload_radius = float(QUALITY[quality].preload)
+	arena_radius = ARENA_MOBILE if is_mobile else ARENA_DESKTOP
 	if _url_param("preload") != "":
-		tiles.preload_radius = float(_url_param("preload"))
+		arena_radius = float(_url_param("preload"))
+	# Load the whole arena at fighting detail plus a coarse horizon, once.
+	tiles.unfreeze()
+	tiles.bubble_ge = 28.0 if is_mobile else 20.0
+	tiles.preload_radius = arena_radius
+	tiles.horizon_radius = 22000.0
+	tiles.horizon_ge = 700.0
+	tiles.focus = aircraft
+	enemies.arena_centre = Geo.geodetic_to_local(place.lat, place.lon, 0.0)
+	enemies.arena_radius = arena_radius
 	touch.set_enabled(is_mobile)
 	state = State.PREPARING
 
@@ -241,10 +257,12 @@ func _apply_quality() -> void:
 	if override != "":
 		scale = clamp(float(override), 0.2, 1.0)
 	get_viewport().scaling_3d_scale = scale
+	sun.shadow_enabled = not is_mobile
+	fx.low_detail = is_mobile
 
 
 func _begin_run() -> void:
-	tiles.preload_radius = 0.0
+	tiles.freeze_arena()
 	var g := tiles.ground_height(aircraft.position)
 	if not is_nan(g):
 		aircraft.position.y = g + 500.0
@@ -468,9 +486,10 @@ func _process(delta: float) -> void:
 			_prep_timer += delta
 			var progress := tiles.loading_progress()
 			var g := tiles.ground_height(aircraft.position)
-			menu.set_loading(progress, "Streaming %s… %d%%" % [place.name, int(progress * 100.0)])
+			var st := tiles.stats()
+			menu.set_loading(progress, "Loading the %s arena… %d%%  (%d tiles)" % [place.name, int(progress * 100.0), st.loaded])
 			var done: bool = tiles.idle() and _prep_timer > 1.0 and (not is_nan(g) or _prep_timer > 8.0)
-			if done or _prep_timer > 30.0:
+			if done or _prep_timer > 60.0:
 				_begin_run()
 		State.RUN:
 			_flying()
@@ -483,12 +502,98 @@ func _process(delta: float) -> void:
 					combo = 1
 					hud.combo = 1
 			aircraft.hp = min(aircraft.hp + delta * 2.0, 100.0)
+			_update_lock(delta)
+			_arena_boundary(delta)
+			if Controls.rocket_requested:
+				Controls.rocket_requested = false
+				fire_rocket()
 		State.CRASHED:
 			_crash_timer -= delta
 			if _crash_timer <= 0.0:
 				_respawn()
 	if state != State.MENU and state != State.BOOT:
 		engine_audio.update(aircraft.throttle if aircraft.alive else 0.0, aircraft.airspeed, delta)
+
+
+## Target lock: nearest ship inside a wide front cone (or any, when none
+## is ahead). While the stick is idle the nose eases toward it, so lining
+## up a shot is easy — especially with a thumb on a phone.
+func _update_lock(delta: float) -> void:
+	if not locked.is_empty() and not enemies.ships.has(locked):
+		locked = {}
+	if locked.is_empty() or _lock_stale():
+		locked = _pick_target()
+	if locked.is_empty():
+		Controls.assist = Vector2.ZERO
+		camera.look_target = Vector3.INF
+		return
+	var dist: float = locked.pos.distance_to(aircraft.position)
+	var lead: Vector3 = locked.pos + locked.vel * (dist / (Guns.SPEED + aircraft.airspeed))
+	camera.look_target = locked.pos
+	var local: Vector3 = aircraft.basis.inverse() * (lead - aircraft.position)
+	if local.z < 0.0:
+		var ang_x := atan2(local.x, -local.z)
+		var ang_y := atan2(local.y, -local.z)
+		var strength: float = 0.5 if is_mobile else 0.35
+		Controls.assist = Vector2(clamp(ang_x * 2.5, -1.0, 1.0) * strength, clamp(ang_y * 2.5, -1.0, 1.0) * strength)
+	else:
+		Controls.assist = Vector2.ZERO
+
+
+func _lock_stale() -> bool:
+	var local: Vector3 = aircraft.basis.inverse() * (locked.pos - aircraft.position)
+	return local.z > 0.0 and local.length() > 600.0
+
+
+func _pick_target() -> Dictionary:
+	var best: Dictionary = {}
+	var best_score := INF
+	for s in enemies.ships:
+		var local: Vector3 = aircraft.basis.inverse() * (s.pos - aircraft.position)
+		var d: float = local.length()
+		var ahead: float = -local.z / max(d, 1.0)   # 1 = dead ahead
+		var sc: float = d * (1.0 if ahead > 0.3 else 3.0)
+		if sc < best_score:
+			best_score = sc
+			best = s
+	return best
+
+
+func fire_rocket() -> void:
+	if state != State.RUN:
+		return
+	if guns.fire_rocket(locked):
+		hud.pop("ROCKET", false, Hud.COL)
+		camera.kick(1.0)
+	else:
+		sfx.play("click", -16.0, 0.6)
+
+
+func cycle_target() -> void:
+	if enemies.ships.size() < 2:
+		return
+	var i := enemies.ships.find(locked)
+	locked = enemies.ships[(i + 1) % enemies.ships.size()]
+	sfx.play("click", -14.0)
+
+
+## Keep the fight over the loaded city: outside the arena the plane is eased
+## back toward the centre and the HUD says so.
+func _arena_boundary(delta: float) -> void:
+	var centre: Vector3 = enemies.arena_centre
+	var off: Vector3 = aircraft.position - centre
+	off.y = 0.0
+	var d := off.length()
+	hud.outside = d > arena_radius
+	if d > arena_radius:
+		_outside_timer += delta
+		var local: Vector3 = aircraft.basis.inverse() * (centre + Vector3(0, aircraft.position.y - centre.y, 0) - aircraft.position)
+		var turn: float = clamp(atan2(local.x, -local.z) * 2.0, -1.0, 1.0)
+		if abs(turn) < 0.05:
+			turn = 1.0
+		Controls.assist = Vector2(turn * min(_outside_timer * 0.4, 0.7), 0.15)
+	else:
+		_outside_timer = 0.0
 
 
 ## Test bot: steer at the nearest ship (used by the headless flow test).
@@ -559,6 +664,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			aircraft.start_maneuver("roll")
 		elif event.is_action_pressed("radio"):
 			radio.toggle()
+		elif event.is_action_pressed("lock"):
+			cycle_target()
+		elif event.is_action_pressed("rocket"):
+			fire_rocket()
 
 
 # ------------------------------------------------------------ platform
@@ -649,6 +758,7 @@ func _debug_snapshot(_args: Array) -> void:
 		"kills": enemies.kills,
 		"lives": lives,
 		"enemies": enemies.ships.size(),
+		"frozen": tiles.frozen,
 		"pos": [aircraft.position.x, aircraft.position.y, aircraft.position.z],
 	}
 	JavaScriptBridge.eval("window.__os_snapshot = " + JSON.stringify(snap) + ";", true)

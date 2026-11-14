@@ -21,6 +21,8 @@ var mouse_aim := false          # desktop: steer toward the mouse cursor
 var _mouse_axes := Vector2.ZERO
 var _mouse_seen := false
 var mouse_fire := false
+var assist := Vector2.ZERO      # auto-track nudge (roll, pitch) added when the stick is idle
+var hands_off := true
 
 const ACTIONS := {
 	"pitch_up": [KEY_S, KEY_DOWN],
@@ -32,6 +34,8 @@ const ACTIONS := {
 	"throttle_up": [KEY_SHIFT],
 	"throttle_down": [KEY_CTRL],
 	"fire": [KEY_SPACE, KEY_F],
+	"lock": [KEY_TAB],
+	"rocket": [KEY_E, KEY_CTRL],
 	"brake": [KEY_X],
 	"level": [KEY_L],
 	"assist": [KEY_B],
@@ -61,6 +65,8 @@ const PAD_BUTTONS := {
 	"loop": JOY_BUTTON_X,
 	"barrel_roll": JOY_BUTTON_B,
 	"fire": JOY_BUTTON_A,
+	"lock": JOY_BUTTON_X,
+	"rocket": JOY_BUTTON_RIGHT_SHOULDER,
 	"brake": JOY_BUTTON_B,
 	"menu": JOY_BUTTON_START,
 }
@@ -95,6 +101,10 @@ func _process(delta: float) -> void:
 	if mouse_aim and _mouse_seen and abs(p) < 0.05 and abs(r) < 0.05:
 		p = -_mouse_axes.y
 		r = _mouse_axes.x
+	hands_off = abs(p) < 0.08 and abs(r) < 0.08
+	if hands_off:
+		p += assist.y
+		r += assist.x
 	p = clamp(p, -1.0, 1.0) * sensitivity
 	r = clamp(r, -1.0, 1.0) * sensitivity
 	# Smooth keyboard steps so surfaces travel rather than snap.
@@ -131,6 +141,10 @@ func _input(event: InputEvent) -> void:
 		_mouse_seen = true
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		mouse_fire = event.pressed
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		rocket_requested = true
+
+var rocket_requested := false
 
 
 func set_touch(axes: Vector2, throttle: float) -> void:
