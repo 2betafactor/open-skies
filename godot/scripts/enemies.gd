@@ -24,6 +24,7 @@ var wave := 0
 var kills := 0
 var arena_centre := Vector3.ZERO
 var arena_radius := 2500.0
+var max_ships := 6
 var active := false
 var _packed: PackedScene
 var _bolt_mesh: Mesh
@@ -73,7 +74,7 @@ func clear() -> void:
 
 func _next_wave() -> void:
 	wave += 1
-	var n: int = min(2 + wave, 6)
+	var n: int = min(2 + wave, max_ships)
 	for i in range(n):
 		_spawn_ship(i, n)
 

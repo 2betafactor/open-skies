@@ -21,7 +21,7 @@ const PRESETS := [
 ]
 
 const QUALITY := {
-	"Performance": {"sse": 46.0, "far": 45000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 900, "scale": 0.6, "preload": 1500.0},
+	"Performance": {"sse": 60.0, "far": 30000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 420, "scale": 0.5, "preload": 1500.0},
 	"Balanced": {"sse": 30.0, "far": 80000.0, "msaa": Viewport.MSAA_DISABLED, "tiles": 1600, "scale": 1.0, "preload": 2000.0},
 	"Quality": {"sse": 18.0, "far": 110000.0, "msaa": Viewport.MSAA_2X, "tiles": 1500, "scale": 1.0, "preload": 3000.0},
 }
@@ -29,7 +29,8 @@ const QUALITY := {
 const LIVES := 3
 const COMBO_WINDOW := 6.0
 const ARENA_DESKTOP := 3000.0
-const ARENA_MOBILE := 2200.0
+const ARENA_MOBILE := 1500.0
+const START_RADIUS := 900.0      # fight starts once this much is loaded
 
 var state := State.BOOT
 var tiles: GoogleTiles
@@ -151,6 +152,7 @@ func _boot() -> void:
 		menu.set_status("")
 		tiles.start(Api.api_key)
 		_tiles_started = true
+	_boot_done = true
 	menu.refresh_scores()
 	if _url_param("autostart") == "1":
 		start_flight()
@@ -201,7 +203,20 @@ func _build_environment() -> void:
 
 # ------------------------------------------------------------------- flow
 
+var _boot_done := false
+var _starting := false
+
+
 func start_flight() -> void:
+	if _starting:
+		return
+	if not _boot_done:
+		# PLAY pressed before the server config arrived: wait for it.
+		_starting = true
+		menu.set_status("Loading…")
+		while not _boot_done:
+			await get_tree().process_frame
+		_starting = false
 	if Api.api_key == "" or not _tiles_started:
 		menu.set_status("Tiles are not available without an API key.", true)
 		return
@@ -229,15 +244,23 @@ func start_flight() -> void:
 	menu.hide_summary()
 	top_speed = 0.0
 	_prep_timer = 0.0
+	_prep_started_ms = Time.get_ticks_msec()
 	arena_radius = ARENA_MOBILE if is_mobile else ARENA_DESKTOP
 	if _url_param("preload") != "":
 		arena_radius = float(_url_param("preload"))
-	# Load the whole arena at fighting detail plus a coarse horizon, once.
+	# Load the arena at fighting detail plus a coarse horizon. The fight
+	# starts once the area around the spawn is in; the rest of the arena
+	# finishes in the background, then the terrain is frozen.
 	tiles.unfreeze()
-	tiles.bubble_ge = 28.0 if is_mobile else 20.0
-	tiles.preload_radius = arena_radius
-	tiles.horizon_radius = 22000.0
-	tiles.horizon_ge = 700.0
+	tiles.mipmaps = not is_mobile
+	tiles.bubble_ge = 45.0 if is_mobile else 20.0
+	tiles.preload_radius = min(START_RADIUS, arena_radius)
+	tiles.horizon_radius = 12000.0 if is_mobile else 22000.0
+	tiles.horizon_ge = 1200.0 if is_mobile else 700.0
+	if _url_param("horizon") != "":
+		tiles.horizon_radius = float(_url_param("horizon"))
+	enemies.max_ships = 4 if is_mobile else 6
+	_arena_done = false
 	tiles.focus = aircraft
 	enemies.arena_centre = Geo.geodetic_to_local(place.lat, place.lon, 0.0)
 	enemies.arena_radius = arena_radius
@@ -261,8 +284,16 @@ func _apply_quality() -> void:
 	fx.low_detail = is_mobile
 
 
+var _arena_done := false
+var _run_time := 0.0
+var _prep_started_ms := 0
+
+
 func _begin_run() -> void:
-	tiles.freeze_arena()
+	# Keep loading the full arena while flying; freeze once it is complete.
+	tiles.preload_radius = arena_radius
+	tiles._select_timer = 0.0
+	_run_time = 0.0
 	var g := tiles.ground_height(aircraft.position)
 	if not is_nan(g):
 		aircraft.position.y = g + 500.0
@@ -296,7 +327,8 @@ func _reset_run() -> void:
 	guns.reset()
 	enemies.start()
 	if _url_param("testkill") == "1":
-		enemies.spawn_dummy(450.0)
+		enemies.max_ships = 1
+		enemies.spawn_dummy(400.0)
 
 
 func restart_run() -> void:
@@ -489,10 +521,16 @@ func _process(delta: float) -> void:
 			var st := tiles.stats()
 			menu.set_loading(progress, "Loading the %s arena… %d%%  (%d tiles)" % [place.name, int(progress * 100.0), st.loaded])
 			var done: bool = tiles.idle() and _prep_timer > 1.0 and (not is_nan(g) or _prep_timer > 8.0)
-			if done or _prep_timer > 60.0:
+			# Cap by wall-clock time: a slow phone runs the game clock slowly.
+			var waited: float = (Time.get_ticks_msec() - _prep_started_ms) / 1000.0
+			if done or waited > 45.0:
 				_begin_run()
 		State.RUN:
 			_flying()
+			_run_time += delta
+			if not _arena_done and _run_time > 3.0 and tiles.idle() and not tiles.frozen:
+				_arena_done = true
+				tiles.freeze_arena()
 			guns.firing = (Controls.fire or _url_param("autofire") == "1") and aircraft.alive
 			if _url_param("autoaim") == "1":
 				_autoaim()
@@ -759,6 +797,18 @@ func _debug_snapshot(_args: Array) -> void:
 		"lives": lives,
 		"enemies": enemies.ships.size(),
 		"frozen": tiles.frozen,
+		"mobile": is_mobile,
+		"ui_scale": get_tree().root.content_scale_factor,
+		"touch_enabled": touch.enabled,
+		"touch_debug": touch.debug_last,
+		"touch_fire": Controls._touch_fire,
+		"ctrl_fire": Controls.fire,
+		"touch_buttons": touch.button_rects_window() if touch.enabled else {},
+		"dpr": JavaScriptBridge.eval("window.devicePixelRatio || 1", true),
+		"firing": guns.firing,
+		"touch_axes": [Controls._touch_axes.x, Controls._touch_axes.y],
+		"touch_throttle": Controls._touch_throttle,
+		"rockets": guns.rockets,
 		"pos": [aircraft.position.x, aircraft.position.y, aircraft.position.z],
 	}
 	JavaScriptBridge.eval("window.__os_snapshot = " + JSON.stringify(snap) + ";", true)

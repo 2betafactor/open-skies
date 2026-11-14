@@ -16,7 +16,7 @@ OUT = os.path.join(HERE, "out")
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", default="http://localhost:8000/play/?quality=Performance&scale=0.3&preload=600")
+    ap.add_argument("--url", default="http://localhost:8000/play/?quality=Performance&scale=0.3&preload=600&horizon=0")
     ap.add_argument("--seconds", type=float, default=360.0)
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)

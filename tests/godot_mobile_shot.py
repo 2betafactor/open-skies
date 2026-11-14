@@ -5,7 +5,7 @@ import json, os, sys, time
 from playwright.sync_api import sync_playwright
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
-BASE = "http://localhost:8000/play/?touch=1&quality=Performance&scale=0.35&preload=500"
+BASE = "http://localhost:8000/play/?touch=1&quality=Performance&scale=0.35&preload=500&horizon=0"
 
 with sync_playwright() as p:
     browser = p.chromium.launch(args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])

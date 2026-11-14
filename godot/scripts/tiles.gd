@@ -29,6 +29,7 @@ const YUP_TO_ZUP := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 @export var bubble_ge := 40.0          # collision/prefetch bubble refines to this detail
 @export var lookahead_seconds := 18.0  # prefetch where the aircraft will be
 @export var decode_budget_ms := 7.0    # per-frame glTF decode budget
+@export var mipmaps := true            # off on phones: half the texture memory
 var preload_radius := 0.0              # > 0 while preparing: load a full bubble first
 var horizon_radius := 0.0              # > 0 while preparing: coarse ring beyond the arena
 var horizon_ge := 700.0
@@ -704,10 +705,10 @@ func _prepare_meshes(node: Node, meshes: Array) -> void:
 					var bm := mat as BaseMaterial3D
 					bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 					bm.cull_mode = BaseMaterial3D.CULL_BACK
-					bm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+					bm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC if mipmaps else BaseMaterial3D.TEXTURE_FILTER_LINEAR
 					bm.vertex_color_use_as_albedo = false
 					var tex := bm.albedo_texture
-					if tex is ImageTexture:
+					if mipmaps and tex is ImageTexture:
 						var img: Image = tex.get_image()
 						if img != null and not img.has_mipmaps():
 							img.generate_mipmaps()

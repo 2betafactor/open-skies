@@ -12,6 +12,7 @@ var _steer_origin := Vector2.ZERO
 var _steer_pos := Vector2.ZERO
 var _held: Dictionary = {}        # touch index -> button action
 var _buttons: Array = []
+var debug_last := {}
 var _draw: Control
 var _font: Font
 
@@ -72,23 +73,33 @@ func _layout() -> void:
 	_buttons.append({"rect": Rect2(size.x - 48.0 * s - m, m, 48.0 * s, 30.0 * s), "label": "II", "action": "menu", "round": false})
 
 
+## Window pixels -> this layer's (scaled) coordinates. The HUD is scaled up
+## on phones, so raw touch positions must be mapped before hit-testing.
+func _to_local(p: Vector2) -> Vector2:
+	# Godot already maps input positions into the scaled UI space.
+	return p
+
+
 func _input(event: InputEvent) -> void:
 	if not enabled:
 		return
 	if event is InputEventScreenTouch:
 		var e := event as InputEventScreenTouch
+		var pos := _to_local(e.position)
+		debug_last = {"raw": [e.position.x, e.position.y], "local": [pos.x, pos.y], "pressed": e.pressed, "index": e.index, "hit": ""}
 		if e.pressed:
 			_layout()
 			for b in _buttons:
-				if b.rect.grow(6.0).has_point(e.position):
+				if b.rect.grow(10.0).has_point(pos):
+					debug_last.hit = b.action
 					_held[e.index] = b.action
 					_press(b.action, true)
 					get_viewport().set_input_as_handled()
 					return
 			if _steer_id < 0:
 				_steer_id = e.index
-				_steer_origin = e.position
-				_steer_pos = e.position
+				_steer_origin = pos
+				_steer_pos = pos
 				get_viewport().set_input_as_handled()
 		else:
 			if _held.has(e.index):
@@ -101,12 +112,23 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		var d := event as InputEventScreenDrag
 		if d.index == _steer_id:
-			_steer_pos = d.position
-			var v := (_steer_pos - _steer_origin) / (95.0 * _scale())
+			_steer_pos = _to_local(d.position)
+			var v := (_steer_pos - _steer_origin) / (80.0 * _scale())
 			if v.length() > 1.0:
 				v = v.normalized()
 			Controls.set_touch(Vector2(v.x, -v.y), Controls._touch_throttle)
 			get_viewport().set_input_as_handled()
+
+
+## Button rectangles in window pixels (for tests / debugging).
+func button_rects_window() -> Dictionary:
+	_layout()
+	var f: float = get_tree().root.content_scale_factor
+	var out := {}
+	for b in _buttons:
+		var r: Rect2 = b.rect
+		out[b.action] = [r.position.x * f, r.position.y * f, r.size.x * f, r.size.y * f]
+	return out
 
 
 func _press(action: String, down: bool) -> void:

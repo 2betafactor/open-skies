@@ -18,7 +18,7 @@ def main():
     ap.add_argument("--seconds", type=int, default=45)
     args = ap.parse_args()
     cmd = [args.godot, "--headless", "--path", os.path.join(ROOT, "godot"), "--",
-           "--server=" + args.server, "--autostart=1", "--trace=1", "--seconds=%d" % args.seconds, "--autofire=1", "--testkill=1", "--preload=1500"]
+           "--server=" + args.server, "--autostart=1", "--trace=1", "--seconds=%d" % args.seconds, "--autofire=1", "--testkill=1", "--preload=1500", "--horizon=0"]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=args.seconds * 4 + 60).stdout
     lines = [l for l in out.splitlines() if l.startswith("[trace] state=")]
     for l in lines:
