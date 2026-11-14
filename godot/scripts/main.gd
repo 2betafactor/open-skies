@@ -840,4 +840,6 @@ func _trace(delta: float) -> void:
 		var st := tiles.stats()
 		var g := tiles.ground_height(aircraft.position)
 		var tm := aircraft.telemetry()
+		var cam_rel: Vector3 = aircraft.position - camera.global_position
+		print("[trace] cam dist=%.1f ahead_dot=%.2f fov=%.0f cam_pos=%s" % [cam_rel.length(), (-camera.global_basis.z).dot(cam_rel.normalized()), camera.fov, camera.global_position.snapped(Vector3(1, 1, 1))])
 		print("[trace] state=%s tiles(vis=%d loaded=%d q=%d dec=%d avg=%.1fms fail=%d) ground=%s agl=%s alt=%.0f spd=%.0f score=%d kills=%d ships=%d lives=%d pos=%s" % [State.keys()[state], st.visible, st.loaded, st.queued, st.pending_decode, st.decode_ms_avg, st.failed, str(g), str(tm.agl), tm.altitude, tm.airspeed, score, enemies.kills, enemies.ships.size(), lives, aircraft.position.snapped(Vector3(1, 1, 1))])

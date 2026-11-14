@@ -12,6 +12,7 @@ var _dragging := false
 var _orbit_release := 0.0
 var _smooth_basis := Basis()
 var _pos_vel := Vector3.ZERO
+var _off := Vector3.ZERO
 var _flyby_pos := Vector3.ZERO
 var _flyby_timer := 0.0
 var base_fov := 60.0
@@ -50,6 +51,7 @@ func snap() -> void:
 	_smooth_basis = target.basis
 	var want := _chase_transform()
 	global_transform = want
+	_off = want.origin - target.position
 	_pos_vel = Vector3.ZERO
 
 
@@ -107,7 +109,8 @@ func _chase_transform() -> Transform3D:
 	var rot := Basis(up, orbit.x) * Basis(right, orbit.y)
 	cam_basis = rot * cam_basis
 	var pos: Vector3 = target.position + cam_basis * Vector3(offset.x, offset.y, offset.z)
-	var look_at_pos: Vector3 = target.position + fwd * 30.0 + up * 2.0
+	# Aim at the aircraft itself (tiny lead) so it sits in the screen centre.
+	var look_at_pos: Vector3 = target.position + fwd * 6.0
 	var t := Transform3D(cam_basis, pos)
 	return t.looking_at(look_at_pos, up)
 
@@ -118,26 +121,30 @@ func _update_chase(delta: float) -> void:
 	var q_to := target.basis.get_rotation_quaternion()
 	var k := 1.0 - exp(-delta * 7.0)
 	_smooth_basis = Basis(q_from.slerp(q_to, k))
-	# Lean the view toward the locked target (never more than ~22 deg).
-	var want_lean := Vector2.ZERO
-	if look_target != Vector3.INF:
-		var local: Vector3 = target.basis.inverse() * (look_target - target.position)
-		if local.z < 0.0:
-			want_lean = Vector2(clamp(atan2(local.x, -local.z), -0.15, 0.15), clamp(atan2(local.y, -local.z), -0.1, 0.1))
-	_lean = _lean.lerp(want_lean, 1.0 - exp(-delta * 1.5))
-	orbit = Vector2(-_lean.x, _lean.y)
+	# No lean toward targets: the plane stays dead centre.
+	orbit = Vector2.ZERO
 	var want := _chase_transform()
-	# Critically damped spring on position: snappy but never jittery.
-	var stiffness := 55.0
+	# Spring the camera's offset *relative to the aircraft* (not its world
+	# position): a world-space spring trails a 170 m/s plane by tens of
+	# metres, which made the aircraft sit small and low on screen.
+	var stiffness := 60.0
 	var damping := 2.0 * sqrt(stiffness)
-	var disp := global_position - want.origin
+	var want_off: Vector3 = want.origin - target.position
+	if delta > 0.1:
+		# Very low frame rate: do not integrate a spring across a huge step.
+		_off = want_off
+		_pos_vel = Vector3.ZERO
+	var disp: Vector3 = _off - want_off
 	_pos_vel += (-stiffness * disp - damping * _pos_vel) * delta
-	global_position += _pos_vel * delta
+	_off += _pos_vel * delta
+	var offset: Vector3 = target.spec.chase
+	var min_d: float = offset.length() * 0.8
+	if _off.length() < min_d:
+		_off = want_off.normalized() * min_d
+		_pos_vel = Vector3.ZERO
+	global_position = target.position + _off
 	# Keep the aircraft in frame no matter what the spring is doing.
-	var ahead: Vector3 = target.position + (-target.basis.z) * 25.0
-	if look_target != Vector3.INF:
-		ahead = ahead.lerp(look_target, 0.08)
-	look_at(ahead, want.basis.y)
+	look_at(target.position + (-target.basis.z) * 6.0, want.basis.y)
 
 
 func _update_cockpit() -> void:
