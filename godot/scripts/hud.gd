@@ -144,7 +144,7 @@ func _on_draw() -> void:
 	_draw_radar(c, Vector2(cx, top + 90.0))
 	if outside:
 		var a := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.01)
-		c.draw_string(_font, Vector2(cx - 200.0, cy - 60.0), "RETURN TO THE FIGHT", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 26, Color(COL_RED, a))
+		c.draw_string(_font, Vector2(cx - 200.0, cy + 70.0), "RETURN TO THE FIGHT", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 26, Color(COL_RED, a))
 
 	# Warnings and announcements.
 	if not is_nan(tm.agl) and tm.agl < 70.0 and tm.vs < -10.0:

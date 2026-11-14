@@ -55,7 +55,7 @@ func _layout() -> void:
 	# Arrow pad: bottom-left, translucent (drag-steering anywhere still works).
 	var a := 52.0 * s
 	var px := m + a
-	var py := size.y - m - a * 1.5
+	var py := size.y - m - a * 2.0
 	_buttons.append({"rect": Rect2(px, py - a, a, a), "label": "▲", "action": "up", "round": false})
 	_buttons.append({"rect": Rect2(px, py + a, a, a), "label": "▼", "action": "down", "round": false})
 	_buttons.append({"rect": Rect2(px - a, py, a, a), "label": "◀", "action": "left", "round": false})
