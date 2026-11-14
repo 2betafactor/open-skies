@@ -140,7 +140,7 @@ func _build_menu() -> void:
 	var title := _label(col, "OPEN SKIES", 46, ACCENT)
 	title.add_theme_constant_override("outline_size", 6)
 	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
-	_label(col, "Fly through rings over the real world. Boost, loop, roll, rack up the combo before the clock runs out.", 15, DIM)
+	_label(col, "Dogfight over the real world. Shoot down waves of alien ships, chain kills for combos, loop and roll for bonus points.", 15, DIM)
 
 	var row := HFlowContainer.new()
 	row.add_theme_constant_override("h_separation", 12)
@@ -226,7 +226,7 @@ func _build_menu() -> void:
 	_status = _label(bottom, "", 13, DIM)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_label(col, "Arrows / WASD steer · Shift boost · Space brake · R loop · T barrel roll · C camera · M music · Esc pause", 12, DIM)
+	_label(col, "Mouse or arrows / WASD steer · Space / click fire · Shift boost · R loop · T barrel roll · C camera · M music · Esc pause", 12, DIM)
 
 
 func relayout() -> void:
@@ -348,7 +348,7 @@ func _build_loading() -> void:
 	_loading_bar.show_percentage = false
 	_loading_bar.custom_minimum_size = Vector2(360, 12)
 	v.add_child(_loading_bar)
-	_label(v, "Fly through the gold ring. Every ring adds time and score; chain them for combos.", 12, DIM)
+	_label(v, "Shoot the ships, dodge the pink bolts. Kills in quick succession multiply your score.", 12, DIM)
 
 
 func show_loading(on: bool) -> void:
@@ -389,7 +389,7 @@ func _build_summary() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
-	_label(v, "TIME'S UP", 28, ACCENT)
+	_label(v, "GAME OVER", 28, ACCENT)
 	_summary_label = RichTextLabel.new()
 	_summary_label.bbcode_enabled = true
 	_summary_label.fit_content = true
@@ -412,7 +412,6 @@ func _build_summary() -> void:
 	again.add_theme_stylebox_override("hover", _style(ACCENT.lightened(0.15), 12))
 	again.add_theme_color_override("font_color", Color(0.1, 0.07, 0.0))
 	again.custom_minimum_size = Vector2(180, 50)
-	_button(brow, "Keep flying", func(): main.keep_flying())
 	_button(brow, "Menu", func(): main.back_to_menu())
 
 
@@ -421,8 +420,8 @@ func show_summary(result: Dictionary) -> void:
 	_post_button.disabled = false
 	_post_button.text = "Post score"
 	_summary_name.text = main.pilot_name
-	_summary_label.text = "[b]%s[/b]\nScore [color=#ffd76a]%d[/color]\n%d rings · best combo x%d · %d km/h top speed\n" % [
-		result.place, int(result.score), int(result.rings), int(result.best_combo), int(result.top_speed * 3.6)]
+	_summary_label.text = "[b]%s[/b]\nScore [color=#ffd76a]%d[/color]\n%d ships down · reached wave %d · best combo x%d\n" % [
+		result.place, int(result.score), int(result.kills), int(result.wave), int(result.best_combo)]
 
 
 func summary_name() -> String:

@@ -11,25 +11,30 @@ still served at `/classic`.
 
 ## Godot version (default at `/`)
 
-**Open Skies is an arcade ring run over the real world.** Pick a city, pick a
-plane, hit PLAY. Fly through the gold rings before the clock runs out: every
-ring adds time and score, chaining them builds a combo multiplier, loops and
-barrel rolls pay bonus points. Crashing costs five seconds and respawns you
-in place. When time is up, post your score and play again instantly.
+**Open Skies is an arcade dogfight over the real world.** Pick a city, pick a
+plane, hit PLAY. Waves of alien ships cruise over the city; shoot them down,
+chain kills within a few seconds for a combo multiplier, throw in loops and
+barrel rolls for bonus points, and dodge their pink bolts. Three lives;
+when they are gone, post your score and play again instantly.
 
-- **Controls**: arrows or `WASD` steer (the plane levels itself and manages
-  its own engine), hold `Shift` to boost, `Space` to brake, `R` loop, `T`
-  barrel roll, `C` camera, `M` music, `Esc` pause. Phones get a virtual stick,
-  a boost/brake slider and buttons.
+- **Controls**: on desktop the plane flies toward your mouse cursor (arrows or
+  `WASD` also work), `Space` or click fires, hold `Shift` to boost, `R` loop,
+  `T` barrel roll, `C` camera, `M` music, `Esc` pause. On phones you drag
+  anywhere to steer (no stick graphics in the way), with FIRE and BOOST in the
+  bottom-right corner and tiny LOOP / ROLL buttons bottom-left.
+- **Feel**: the plane levels itself, manages its own engine (never lets you
+  bleed into a stall), and bullets bend slightly toward a ship that is nearly
+  on the nose. A lead pip shows where to aim at the nearest ship; arrows at
+  the screen edge point at the rest.
 - **Four planes**: Typhoon (razor roll rate), Tomcat (swing wings), Sabre
-  (forgiving classic) and Nova (vectored-thrust ship) — real-world sizes,
-  bright arcade paint, afterburner flames and wingtip trails.
+  (forgiving classic) and Nova (vectored-thrust ship), with afterburner
+  flames and wingtip trails.
 - **World**: Google Photorealistic 3D Tiles streamed by `godot/scripts/tiles.gd`
   (pure GDScript): a bubble around the spawn is preloaded before the run, a
   look-ahead bubble prefetches where you are heading, decoding is budgeted per
   frame, and nearby tiles carry collision. Quality is auto-detected (lighter on
   phones); `?quality=Performance|Balanced|Quality` overrides it.
-- **Juice**: ring bursts, screen flash, floating score pop-ups, speed lines,
+- **Juice**: explosions, screen flash, floating score pop-ups, speed lines,
   camera kicks, synthesised sound effects, Nightride FM under the engine.
 - **Leaderboard**: top scores are shared through the Python server.
 

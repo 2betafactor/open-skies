@@ -20,6 +20,11 @@ func build() -> void:
 	_sounds["boom"] = _boom(1.4)
 	_sounds["trick"] = _arp([523.0, 659.0, 784.0, 1046.0, 1318.0], 0.07)
 	_sounds["click"] = _chime(1500.0, 0.08)
+	_sounds["pew"] = _pew()
+	_sounds["hit"] = _chime(420.0, 0.12)
+	_sounds["kill"] = _arp([880.0, 1100.0, 1320.0, 1760.0], 0.05)
+	_sounds["hurt"] = _buzz(90.0, 0.25)
+	_sounds["wave"] = _arp([523.0, 659.0, 784.0, 1046.0, 784.0, 1046.0], 0.1)
 	for i in range(6):
 		var p := AudioStreamPlayer.new()
 		p.bus = "Master"
@@ -87,6 +92,20 @@ func _arp(freqs: Array, step: float) -> AudioStreamWAV:
 				var lt: float = t - t0
 				v += sin(TAU * float(freqs[k]) * lt) * _env(lt, 0.3) * 0.5
 		out[i] = v * 0.6
+	return _wav(out)
+
+
+func _pew() -> AudioStreamWAV:
+	var dur := 0.11
+	var n := int(RATE * dur)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	for i in range(n):
+		var t := float(i) / RATE
+		var f: float = 1400.0 - 900.0 * (t / dur)
+		out[i] = (sin(TAU * f * t) * 0.6 + rng.randf_range(-0.3, 0.3)) * _env(t, dur, 0.003)
 	return _wav(out)
 
 

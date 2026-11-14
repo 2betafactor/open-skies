@@ -9,6 +9,40 @@ var _boom: CPUParticles3D
 var _flames: Array[MeshInstance3D] = []
 var _trails: Array[CPUParticles3D] = []
 var _flame_mat: StandardMaterial3D
+var _dot: ImageTexture
+
+
+## A soft radial dot, generated once; every particle quad uses it.
+func _soft_dot() -> ImageTexture:
+	if _dot != null:
+		return _dot
+	var n := 64
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y in range(n):
+		for x in range(n):
+			var d: float = Vector2(x - n * 0.5 + 0.5, y - n * 0.5 + 0.5).length() / (n * 0.5)
+			var a: float = clamp(1.0 - d, 0.0, 1.0)
+			a = a * a * (3.0 - 2.0 * a)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	_dot = ImageTexture.create_from_image(img)
+	return _dot
+
+
+func _particle_material(additive: bool) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = _soft_dot()
+	m.albedo_color = Color(1, 1, 1, 1)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Alpha blend, not additive: additive sums to white against the sky.
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+	if additive:
+		m.albedo_color = Color(1.3, 1.3, 1.3, 1.0)
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.vertex_color_use_as_albedo = true
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.no_depth_test = false
+	return m
 
 
 func _ready() -> void:
@@ -20,10 +54,10 @@ func _ready() -> void:
 	add_child(_boom)
 	_flame_mat = StandardMaterial3D.new()
 	_flame_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_flame_mat.albedo_color = Color(1.0, 0.55, 0.15, 0.85)
+	_flame_mat.albedo_color = Color(1.0, 0.5, 0.12, 0.6)
 	_flame_mat.emission_enabled = true
-	_flame_mat.emission = Color(1.0, 0.5, 0.1)
-	_flame_mat.emission_energy_multiplier = 3.0
+	_flame_mat.emission = Color(1.0, 0.45, 0.1)
+	_flame_mat.emission_energy_multiplier = 1.2
 	_flame_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_flame_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_flame_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -70,17 +104,11 @@ func attach(ac: Aircraft) -> void:
 		t.scale_amount_min = 0.6
 		t.scale_amount_max = 1.0
 		var qm := QuadMesh.new()
-		qm.size = Vector2(1.2, 1.2)
+		qm.size = Vector2(1.6, 1.6)
+		qm.material = _particle_material(false)
 		t.mesh = qm
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.albedo_color = Color(1, 1, 1, 0.35)
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		m.vertex_color_use_as_albedo = true
-		t.mesh.surface_set_material(0, m)
 		var g := Gradient.new()
-		g.set_color(0, Color(1, 1, 1, 0.5))
+		g.set_color(0, Color(1, 1, 1, 0.45))
 		g.set_color(1, Color(1, 1, 1, 0.0))
 		t.color_ramp = g
 		t.position = Vector3(sx * float(spec.span) * 0.48, 0.0, 0.2)
@@ -101,24 +129,15 @@ func _make_burst() -> CPUParticles3D:
 	p.initial_velocity_min = 25.0
 	p.initial_velocity_max = 60.0
 	p.gravity = Vector3(0, -12, 0)
-	p.scale_amount_min = 1.5
-	p.scale_amount_max = 3.0
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
 	var qm := QuadMesh.new()
 	qm.size = Vector2(1, 1)
+	qm.material = _particle_material(true)
 	p.mesh = qm
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(1.0, 0.9, 0.3)
-	m.emission_enabled = true
-	m.emission = Color(1.0, 0.8, 0.2)
-	m.emission_energy_multiplier = 2.0
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	m.vertex_color_use_as_albedo = true
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	qm.surface_set_material(0, m)
 	var g := Gradient.new()
-	g.set_color(0, Color(1.0, 0.95, 0.5, 1.0))
-	g.set_color(1, Color(1.0, 0.5, 0.1, 0.0))
+	g.set_color(0, Color(1.0, 0.9, 0.2, 1.0))
+	g.set_color(1, Color(1.0, 0.4, 0.05, 0.0))
 	p.color_ramp = g
 	return p
 
@@ -129,12 +148,12 @@ func _make_boom() -> CPUParticles3D:
 	p.lifetime = 1.8
 	p.initial_velocity_min = 15.0
 	p.initial_velocity_max = 70.0
-	p.scale_amount_min = 3.0
-	p.scale_amount_max = 9.0
+	p.scale_amount_min = 4.0
+	p.scale_amount_max = 12.0
 	var g := Gradient.new()
-	g.set_color(0, Color(1.0, 0.8, 0.3, 1.0))
-	g.add_point(0.3, Color(1.0, 0.3, 0.05, 0.9))
-	g.set_color(1, Color(0.15, 0.15, 0.15, 0.0))
+	g.set_color(0, Color(1.0, 0.85, 0.35, 1.0))
+	g.add_point(0.3, Color(1.0, 0.35, 0.05, 0.95))
+	g.set_color(1, Color(0.25, 0.22, 0.2, 0.0))
 	p.color_ramp = g
 	return p
 
@@ -160,7 +179,7 @@ func _process(delta: float) -> void:
 		return
 	var boost: float = aircraft.boost
 	var thr: float = aircraft.throttle
-	var flame: float = clamp(boost * 1.2 + (thr - 0.7) * 0.5, 0.0, 1.3)
+	var flame: float = clamp(boost * 0.9 + (thr - 0.75) * 0.5, 0.0, 0.9)
 	var flicker := 0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.05)
 	for f in _flames:
 		var s: float = max(flame * flicker, 0.001)

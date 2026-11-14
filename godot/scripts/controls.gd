@@ -16,6 +16,11 @@ var sensitivity := 1.0
 var _touch_axes := Vector2.ZERO
 var _touch_throttle := 0.0
 var touch_active := false
+var fire := false
+var mouse_aim := false          # desktop: steer toward the mouse cursor
+var _mouse_axes := Vector2.ZERO
+var _mouse_seen := false
+var mouse_fire := false
 
 const ACTIONS := {
 	"pitch_up": [KEY_S, KEY_DOWN],
@@ -26,7 +31,8 @@ const ACTIONS := {
 	"yaw_right": [KEY_E],
 	"throttle_up": [KEY_SHIFT],
 	"throttle_down": [KEY_CTRL],
-	"brake": [KEY_SPACE],
+	"fire": [KEY_SPACE, KEY_F],
+	"brake": [KEY_X],
 	"level": [KEY_L],
 	"assist": [KEY_B],
 	"camera": [KEY_C],
@@ -54,7 +60,8 @@ const PAD_BUTTONS := {
 	"camera": JOY_BUTTON_BACK,
 	"loop": JOY_BUTTON_X,
 	"barrel_roll": JOY_BUTTON_B,
-	"brake": JOY_BUTTON_A,
+	"fire": JOY_BUTTON_A,
+	"brake": JOY_BUTTON_B,
 	"menu": JOY_BUTTON_START,
 }
 
@@ -85,6 +92,9 @@ func _process(delta: float) -> void:
 	if touch_active:
 		p += -_touch_axes.y
 		r += _touch_axes.x
+	if mouse_aim and _mouse_seen and abs(p) < 0.05 and abs(r) < 0.05:
+		p = -_mouse_axes.y
+		r = _mouse_axes.x
 	p = clamp(p, -1.0, 1.0) * sensitivity
 	r = clamp(r, -1.0, 1.0) * sensitivity
 	# Smooth keyboard steps so surfaces travel rather than snap.
@@ -94,6 +104,33 @@ func _process(delta: float) -> void:
 	yaw = lerp(yaw, clamp(y, -1.0, 1.0), k)
 	throttle_delta = Input.get_action_strength("throttle_up") - Input.get_action_strength("throttle_down") + _touch_throttle
 	brake = Input.is_action_pressed("brake")
+	fire = Input.is_action_pressed("fire") or mouse_fire or _touch_fire
+
+
+var _touch_fire := false
+
+
+func set_touch_fire(on: bool) -> void:
+	_touch_fire = on
+
+
+func _input(event: InputEvent) -> void:
+	if not mouse_aim:
+		return
+	if event is InputEventMouseMotion:
+		var vp := get_viewport().get_visible_rect().size
+		var centre := vp * 0.5
+		var off: Vector2 = (event.position - centre) / (min(vp.x, vp.y) * 0.32)
+		var len := off.length()
+		var dead := 0.1
+		if len < dead:
+			off = Vector2.ZERO
+		else:
+			off = off.normalized() * clamp((len - dead) / (1.0 - dead), 0.0, 1.0)
+		_mouse_axes = off
+		_mouse_seen = true
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		mouse_fire = event.pressed
 
 
 func set_touch(axes: Vector2, throttle: float) -> void:

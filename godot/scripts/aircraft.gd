@@ -46,6 +46,7 @@ var distance_m := 0.0
 var flight_time := 0.0
 var surfaces := Vector3.ZERO   # elevator, aileron, rudder (-1..1)
 var max_g := 1.0
+var hp := 100.0
 
 # ---- fly-by-wire internals ----
 var _pitch_i := 0.0
@@ -185,6 +186,7 @@ func spawn(lat: float, lon: float, alt_m: float, heading_deg: float, speed: floa
 	max_g = 1.0
 	boost = 0.0
 	boost_energy = 1.0
+	hp = 100.0
 	set_model_visible(true)
 
 
@@ -286,7 +288,8 @@ func _step(dt: float) -> void:
 		var cl_flat := 1.1 * sin(2.0 * alpha) * 0.5
 		cl = cl_edge * fade + cl_flat * (1.0 - fade)
 		stall = true
-	var cd: float = spec.cd0 + spec.k_induced * cl * cl + (spec.brake_drag if Controls.brake else 0.0)
+	var k_ind: float = spec.k_induced * (0.45 if assist == Assist.ARCADE else 1.0)
+	var cd: float = spec.cd0 + k_ind * cl * cl + (spec.brake_drag if Controls.brake else 0.0)
 	if over > 0.0:
 		cd += 0.9 * over
 	cd += 0.6 * beta * beta
@@ -366,7 +369,13 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 			var want_boost: bool = Controls.throttle_delta > 0.5 and boost_energy > 0.02
 			boost = move_toward(boost, 1.0 if want_boost else 0.0, dt * 3.0)
 			boost_energy = clamp(boost_energy + (-0.22 if want_boost else 0.12) * dt, 0.0, 1.0)
-			var cruise: float = 0.45 if not Controls.brake else 0.12
+			# Auto-throttle: cruise, brake, and never let a hard turn bleed
+			# you down to a stall — the engine spools up below 130 m/s.
+			var cruise: float = 0.5 if not Controls.brake else 0.12
+			if airspeed < 130.0 and not Controls.brake:
+				cruise = 1.0
+			elif airspeed < 160.0 and not Controls.brake:
+				cruise = 0.75
 			throttle_cmd = clamp(cruise + boost * 0.38, 0.0, 1.0)
 		else:
 			boost = move_toward(boost, 0.0, dt * 3.0)
@@ -425,7 +434,9 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 		if abs(roll_in) < 0.05:
 			target_p += -bank * 1.6
 		if abs(pitch_in) < 0.05 and abs(bank) < deg_to_rad(60.0):
-			target_q += -pitch * 0.9
+			# Nose back toward the horizon, biased to hold altitude.
+			var want_pitch: float = clamp(-velocity.y * 0.012, -0.12, 0.12)
+			target_q += -(pitch - want_pitch) * 0.9
 	# Arcade: terrain floor guard.
 	if assist == Assist.ARCADE and _maneuver == "" and not is_nan(altitude_agl):
 		var sink := -velocity.y

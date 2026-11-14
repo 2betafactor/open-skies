@@ -55,7 +55,7 @@ func kick(amount: float) -> void:
 	_shake = max(_shake, amount)
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _unhandled_input_disabled(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:

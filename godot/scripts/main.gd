@@ -1,11 +1,11 @@
 extends Node3D
-## Open Skies — arcade ring run over Google's 3D world.
+## Open Skies — arcade dogfight over Google's 3D world.
 ##
-## MENU -> PREPARING (tiles stream in around the spawn) -> RUN (timed) ->
-## TIME_UP (summary) -> RUN again / FREE (no timer) / MENU. Crashes cost
-## time and respawn you a moment later.
+## MENU -> PREPARING (tiles stream in around the spawn) -> RUN (shoot down
+## waves of ships, three lives) -> GAME_OVER (summary, post score) -> RUN
+## again / MENU. Getting shot down or crashing costs a life and respawns you.
 
-enum State { BOOT, MENU, PREPARING, RUN, FREE, PAUSED, CRASHED, TIME_UP }
+enum State { BOOT, MENU, PREPARING, RUN, PAUSED, CRASHED, GAME_OVER }
 
 const PRESETS := [
 	{"name": "San Francisco", "lat": 37.7897, "lon": -122.4017},
@@ -26,9 +26,8 @@ const QUALITY := {
 	"Quality": {"sse": 18.0, "far": 110000.0, "msaa": Viewport.MSAA_2X, "tiles": 1500, "scale": 1.0, "preload": 3000.0},
 }
 
-const RUN_SECONDS := 60.0
-const RING_SECONDS := 4.0
-const CRASH_PENALTY := 5.0
+const LIVES := 3
+const COMBO_WINDOW := 6.0
 
 var state := State.BOOT
 var tiles: GoogleTiles
@@ -38,7 +37,8 @@ var hud: Hud
 var menu: Node
 var engine_audio: EngineAudio
 var radio: Radio
-var rings: RingCourse
+var enemies: Enemies
+var guns: Guns
 var touch: TouchControls
 var fx: Fx
 var sfx: Sfx
@@ -50,7 +50,11 @@ var place := {"name": "San Francisco", "lat": 37.7897, "lon": -122.4017}
 var vehicle_id := "typhoon"
 var quality := "Balanced"
 var pilot_name := "PILOT"
-var time_left := RUN_SECONDS
+var score := 0
+var combo := 1
+var _combo_timer := 0.0
+var _best_combo := 1
+var lives := LIVES
 var top_speed := 0.0
 var last_result: Dictionary = {}
 var _prep_timer := 0.0
@@ -88,18 +92,27 @@ func _ready() -> void:
 	add_child(radio)
 	fx = Fx.new()
 	add_child(fx)
-	rings = RingCourse.new()
-	rings.aircraft = aircraft
-	rings.tiles = tiles
-	rings.ring_passed.connect(_on_ring_passed)
-	rings.ring_missed.connect(_on_ring_missed)
-	add_child(rings)
+	enemies = Enemies.new()
+	enemies.aircraft = aircraft
+	enemies.tiles = tiles
+	enemies.fx = fx
+	enemies.ship_killed.connect(_on_ship_killed)
+	enemies.player_hit.connect(_on_player_hit)
+	enemies.wave_cleared.connect(_on_wave_cleared)
+	add_child(enemies)
+	guns = Guns.new()
+	guns.aircraft = aircraft
+	guns.enemies = enemies
+	guns.fx = fx
+	guns.sfx = sfx
+	guns.hit_ship.connect(_on_gun_hit)
+	add_child(guns)
 	hud = Hud.new()
 	hud.aircraft = aircraft
 	hud.tiles = tiles
 	hud.camera = camera
 	hud.radio = radio
-	hud.rings = rings
+	hud.enemies = enemies
 	add_child(hud)
 	hud.visible = false
 	touch = TouchControls.new()
@@ -109,6 +122,7 @@ func _ready() -> void:
 	menu.main = self
 	add_child(menu)
 	is_mobile = _detect_mobile()
+	Controls.mouse_aim = not is_mobile
 	_apply_ui_scale()
 	get_viewport().size_changed.connect(_apply_ui_scale)
 	_load_prefs()
@@ -233,22 +247,38 @@ func _begin_run() -> void:
 	tiles.preload_radius = 0.0
 	var g := tiles.ground_height(aircraft.position)
 	if not is_nan(g):
-		aircraft.position.y = g + 550.0
+		aircraft.position.y = g + 500.0
 	aircraft.frozen = false
 	aircraft.alive = true
 	camera.snap()
 	menu.show_loading(false)
-	time_left = RUN_SECONDS
-	hud.timed = true
-	rings.start()
+	_reset_run()
 	state = State.RUN
 	if not radio.playing:
 		radio.play()
-	sfx.play("combo", -10.0)
+	sfx.play("wave", -10.0)
+	hud.announce("WAVE 1", 2.5)
 	if is_mobile:
-		hud.show_hint("Drag left side to steer · right slider boosts / brakes · fly through the gold rings", 8.0)
+		hud.show_hint("Drag anywhere to steer · FIRE and BOOST bottom right · shoot the ships, dodge their shots", 8.0)
 	else:
-		hud.show_hint("Arrows or WASD steer · hold SHIFT to boost · fly through the gold rings before time runs out", 8.0)
+		hud.show_hint("Steer with the mouse (or arrows / WASD) · SPACE or click to fire · hold SHIFT to boost · R loop · T roll", 9.0)
+
+
+func _reset_run() -> void:
+	score = 0
+	combo = 1
+	_combo_timer = 0.0
+	_best_combo = 1
+	lives = LIVES
+	top_speed = 0.0
+	hud.score = 0
+	hud.combo = 1
+	hud.lives = lives
+	hud.wave = 1
+	guns.reset()
+	enemies.start()
+	if _url_param("testkill") == "1":
+		enemies.spawn_dummy(450.0)
 
 
 func restart_run() -> void:
@@ -257,29 +287,19 @@ func restart_run() -> void:
 	aircraft.spawn(_spawn_geo[0], _spawn_geo[1], 600.0, _spawn_heading)
 	var g := tiles.ground_height(aircraft.position)
 	if not is_nan(g):
-		aircraft.position.y = g + 550.0
+		aircraft.position.y = g + 500.0
 	aircraft.frozen = false
 	aircraft.alive = true
 	aircraft.set_model_visible(camera.mode != FlightCamera.Mode.COCKPIT)
 	camera.snap()
-	top_speed = 0.0
-	time_left = RUN_SECONDS
-	hud.timed = true
-	rings.start()
+	_reset_run()
 	state = State.RUN
-	sfx.play("combo", -10.0)
-
-
-func keep_flying() -> void:
-	menu.hide_summary()
-	hud.timed = false
-	aircraft.frozen = false
-	state = State.FREE
-	hud.show_hint("Free flight — rings still score. Esc for the menu.", 5.0)
+	sfx.play("wave", -10.0)
+	hud.announce("WAVE 1", 2.5)
 
 
 func pause() -> void:
-	if state != State.RUN and state != State.FREE:
+	if state != State.RUN:
 		return
 	_resume_state = state
 	state = State.PAUSED
@@ -295,11 +315,11 @@ func resume() -> void:
 	menu.show_pause(false)
 
 
-func _time_up() -> void:
-	state = State.TIME_UP
+func _game_over() -> void:
+	state = State.GAME_OVER
 	aircraft.frozen = true
-	sfx.play("miss", -8.0, 0.6)
-	last_result = {"place": place.name, "score": rings.score, "rings": rings.rings_hit, "best_combo": rings.best_combo, "top_speed": top_speed, "time": aircraft.flight_time, "distance": aircraft.distance_m}
+	guns.firing = false
+	last_result = {"place": place.name, "score": score, "kills": enemies.kills, "wave": enemies.wave, "best_combo": _best_combo, "top_speed": top_speed, "time": aircraft.flight_time, "distance": aircraft.distance_m}
 	menu.show_summary(last_result)
 
 
@@ -326,7 +346,9 @@ func back_to_menu() -> void:
 	state = State.MENU
 	aircraft.frozen = true
 	hud.visible = false
-	rings.clear()
+	enemies.clear()
+	guns.reset()
+	guns.firing = false
 	touch.set_enabled(false)
 	menu.show_pause(false)
 	menu.show_loading(false)
@@ -336,19 +358,37 @@ func back_to_menu() -> void:
 
 
 func _on_crashed() -> void:
-	if state != State.RUN and state != State.FREE:
+	_lose_life("CRASHED")
+
+
+func _on_player_hit(damage: float) -> void:
+	if state != State.RUN or not aircraft.alive:
+		return
+	aircraft.hp -= damage
+	hud.flash(Color(1.0, 0.2, 0.2), 0.45)
+	camera.kick(1.5)
+	sfx.play("hurt", -10.0)
+	if aircraft.hp <= 0.0:
+		aircraft.alive = false
+		_lose_life("SHOT DOWN")
+
+
+func _lose_life(why: String) -> void:
+	if state != State.RUN:
 		return
 	_resume_state = state
 	state = State.CRASHED
-	_crash_timer = 1.6
+	lives -= 1
+	hud.lives = lives
+	_crash_timer = 1.8
 	camera.kick(8.0)
 	fx.explode(aircraft.position)
 	sfx.play("boom", -4.0)
 	hud.flash(Color(1.0, 0.4, 0.2), 0.8)
-	if _resume_state == State.RUN:
-		time_left = max(time_left - CRASH_PENALTY, 0.0)
-		hud.pop("CRASH  -%d s" % int(CRASH_PENALTY), true, Hud.COL_RED)
-	rings.combo = 0
+	hud.pop(why, true, Hud.COL_RED)
+	combo = 1
+	hud.combo = 1
+	guns.firing = false
 	aircraft.set_model_visible(false)
 
 
@@ -364,38 +404,59 @@ func _respawn() -> void:
 	aircraft.frozen = false
 	aircraft.set_model_visible(camera.mode != FlightCamera.Mode.COCKPIT)
 	camera.snap()
-	state = _resume_state
+	if lives <= 0:
+		_game_over()
+		return
+	state = State.RUN
+	hud.announce("%d LI%s LEFT" % [lives, "FE" if lives == 1 else "VES"], 2.0)
 
 
 func _on_maneuver_done(kind: String) -> void:
-	if kind == "level":
+	if kind == "level" or state != State.RUN:
 		return
 	var pts := 500 if kind == "loop" else 300
-	rings.score += pts
+	_add_score(pts)
 	hud.pop("%s  +%d" % ["LOOP" if kind == "loop" else "BARREL ROLL", pts], true)
 	sfx.play("trick", -6.0)
-	if state == State.RUN:
-		time_left += 2.0
 
 
-func _on_ring_passed(points: int, combo: int) -> void:
-	hud.pop("+%d" % points, combo >= 3)
-	hud.flash(Hud.COL_GOLD, 0.35)
+func _add_score(pts: int) -> void:
+	score += pts
+	hud.score = score
+
+
+func _on_gun_hit(_ship: Dictionary, killed: bool) -> void:
+	if not killed:
+		hud.flash(Hud.COL_GOLD, 0.08)
+		sfx.play("hit", -18.0)
+
+
+func _on_ship_killed(pos: Vector3) -> void:
+	if _combo_timer > 0.0:
+		combo += 1
+	else:
+		combo = 1
+	_combo_timer = COMBO_WINDOW
+	_best_combo = max(_best_combo, combo)
+	hud.combo = combo
 	hud.combo_pulse()
-	camera.kick(0.8)
-	fx.burst(rings.last_hit_position, combo >= 5)
-	sfx.play("ring_hi" if combo >= 5 else "ring", -6.0, 1.0 + min(combo, 8) * 0.04)
-	if combo > 1 and combo % 5 == 0:
-		sfx.play("combo", -8.0)
-	if state == State.RUN:
-		var bonus: float = RING_SECONDS + min(combo, 6) * 0.5
-		time_left += bonus
-		hud.pop("+%.1f s" % bonus, false, Hud.COL)
+	var pts: int = 100 * min(combo, 10)
+	_add_score(pts)
+	hud.pop("+%d" % pts, combo >= 3)
+	hud.flash(Hud.COL_GOLD, 0.3)
+	camera.kick(1.2)
+	fx.explode(pos)
+	sfx.play("kill", -6.0, 1.0 + min(combo, 8) * 0.04)
+	sfx.play("boom", -14.0, 1.4)
 
 
-func _on_ring_missed() -> void:
-	sfx.play("miss", -14.0)
-	hud.pop("MISS", false, Hud.COL_RED)
+func _on_wave_cleared(n: int) -> void:
+	_add_score(500)
+	hud.wave = n + 1
+	hud.announce("WAVE %d" % (n + 1), 2.5)
+	hud.pop("WAVE CLEAR  +500", true)
+	sfx.play("wave", -8.0)
+	aircraft.hp = min(aircraft.hp + 40.0, 100.0)
 
 
 # --------------------------------------------------------------- per frame
@@ -413,19 +474,41 @@ func _process(delta: float) -> void:
 				_begin_run()
 		State.RUN:
 			_flying()
-			time_left -= delta
-			hud.time_left = time_left
-			if time_left <= 0.0:
-				time_left = 0.0
-				_time_up()
-		State.FREE:
-			_flying()
+			guns.firing = (Controls.fire or _url_param("autofire") == "1") and aircraft.alive
+			if _url_param("autoaim") == "1":
+				_autoaim()
+			if _combo_timer > 0.0:
+				_combo_timer -= delta
+				if _combo_timer <= 0.0:
+					combo = 1
+					hud.combo = 1
+			aircraft.hp = min(aircraft.hp + delta * 2.0, 100.0)
 		State.CRASHED:
 			_crash_timer -= delta
 			if _crash_timer <= 0.0:
 				_respawn()
 	if state != State.MENU and state != State.BOOT:
 		engine_audio.update(aircraft.throttle if aircraft.alive else 0.0, aircraft.airspeed, delta)
+
+
+## Test bot: steer at the nearest ship (used by the headless flow test).
+func _autoaim() -> void:
+	var s := enemies.nearest(aircraft.position, 6000.0)
+	if s.is_empty():
+		return
+	var dist: float = s.pos.distance_to(aircraft.position)
+	var lead: Vector3 = s.pos + s.vel * (dist / (Guns.SPEED + aircraft.airspeed))
+	var local: Vector3 = aircraft.basis.inverse() * (lead - aircraft.position)
+	var axes := Vector2(clamp(local.x / 120.0, -1.0, 1.0), -clamp(local.y / 120.0, -1.0, 1.0))
+	if local.z > 0.0:
+		axes.x = 1.0   # target behind: keep turning
+	if not is_nan(aircraft.altitude_agl) and aircraft.altitude_agl < 200.0:
+		axes.y = -1.0  # terrain: pull up first
+	var thr := 0.0
+	if dist > 1000.0:
+		thr = 1.0
+	Controls.set_touch(axes, thr)
+	Controls.brake = dist < 300.0
 
 
 func _flying() -> void:
@@ -446,9 +529,10 @@ func _rebase() -> void:
 	aircraft.rebase(Geo.ecef_arr_to_local(ecef), rot)
 	camera.global_position = Geo.ecef_arr_to_local(cam_ecef)
 	camera.global_basis = (rot * camera.global_basis).orthonormalized()
-	rings.clear()
-	if state == State.RUN or state == State.FREE:
-		rings.start()
+	for sh in enemies.ships:
+		sh.pos = rot * sh.pos
+		sh.vel = rot * sh.vel
+		sh.wp = rot * sh.wp
 	_rebase_count += 1
 
 
@@ -456,14 +540,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.is_action_pressed("menu"):
 			match state:
-				State.RUN, State.FREE:
+				State.RUN:
 					pause()
 				State.PAUSED:
 					resume()
-				State.TIME_UP:
+				State.GAME_OVER:
 					back_to_menu()
 			return
-		if state != State.RUN and state != State.FREE:
+		if state != State.RUN:
 			return
 		if event.is_action_pressed("camera"):
 			camera.cycle_mode()
@@ -561,8 +645,10 @@ func _debug_snapshot(_args: Array) -> void:
 		"telemetry": tm,
 		"rebases": _rebase_count,
 		"prep": _prep_timer,
-		"score": rings.score,
-		"time_left": time_left,
+		"score": score,
+		"kills": enemies.kills,
+		"lives": lives,
+		"enemies": enemies.ships.size(),
 		"pos": [aircraft.position.x, aircraft.position.y, aircraft.position.z],
 	}
 	JavaScriptBridge.eval("window.__os_snapshot = " + JSON.stringify(snap) + ";", true)
@@ -587,4 +673,4 @@ func _trace(delta: float) -> void:
 		var st := tiles.stats()
 		var g := tiles.ground_height(aircraft.position)
 		var tm := aircraft.telemetry()
-		print("[trace] state=%s tiles(vis=%d loaded=%d q=%d dec=%d avg=%.1fms fail=%d) ground=%s agl=%s alt=%.0f spd=%.0f score=%d time=%.0f pos=%s" % [State.keys()[state], st.visible, st.loaded, st.queued, st.pending_decode, st.decode_ms_avg, st.failed, str(g), str(tm.agl), tm.altitude, tm.airspeed, rings.score, time_left, aircraft.position.snapped(Vector3(1, 1, 1))])
+		print("[trace] state=%s tiles(vis=%d loaded=%d q=%d dec=%d avg=%.1fms fail=%d) ground=%s agl=%s alt=%.0f spd=%.0f score=%d kills=%d ships=%d lives=%d pos=%s" % [State.keys()[state], st.visible, st.loaded, st.queued, st.pending_decode, st.decode_ms_avg, st.failed, str(g), str(tm.agl), tm.altitude, tm.airspeed, score, enemies.kills, enemies.ships.size(), lives, aircraft.position.snapped(Vector3(1, 1, 1))])
