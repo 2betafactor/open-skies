@@ -23,6 +23,7 @@ var _mouse_seen := false
 var mouse_fire := false
 var assist := Vector2.ZERO      # auto-track nudge (roll, pitch) added when the stick is idle
 var hands_off := true
+var hands_off_time := 0.0        # seconds since the player last steered
 
 const ACTIONS := {
 	"pitch_up": [KEY_S, KEY_DOWN],
@@ -102,7 +103,8 @@ func _process(delta: float) -> void:
 		p = -_mouse_axes.y
 		r = _mouse_axes.x
 	hands_off = abs(p) < 0.08 and abs(r) < 0.08
-	if hands_off:
+	hands_off_time = (hands_off_time + delta) if hands_off else 0.0
+	if hands_off and hands_off_time > 0.8:
 		p += assist.y
 		r += assist.x
 	p = clamp(p, -1.0, 1.0) * sensitivity
@@ -148,6 +150,8 @@ var rocket_requested := false
 
 
 func set_touch(axes: Vector2, throttle: float) -> void:
-	_touch_axes = axes
+	# Expo: fine control near the centre, full authority at the edge.
+	var l := axes.length()
+	_touch_axes = axes.normalized() * pow(min(l, 1.0), 1.6) if l > 0.001 else Vector2.ZERO
 	_touch_throttle = throttle
 	touch_active = true

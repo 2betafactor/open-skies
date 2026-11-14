@@ -123,8 +123,8 @@ func _update_chase(delta: float) -> void:
 	if look_target != Vector3.INF:
 		var local: Vector3 = target.basis.inverse() * (look_target - target.position)
 		if local.z < 0.0:
-			want_lean = Vector2(clamp(atan2(local.x, -local.z), -0.4, 0.4), clamp(atan2(local.y, -local.z), -0.3, 0.3))
-	_lean = _lean.lerp(want_lean, 1.0 - exp(-delta * 2.5))
+			want_lean = Vector2(clamp(atan2(local.x, -local.z), -0.15, 0.15), clamp(atan2(local.y, -local.z), -0.1, 0.1))
+	_lean = _lean.lerp(want_lean, 1.0 - exp(-delta * 1.5))
 	orbit = Vector2(-_lean.x, _lean.y)
 	var want := _chase_transform()
 	# Critically damped spring on position: snappy but never jittery.

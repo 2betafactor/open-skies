@@ -250,7 +250,7 @@ func _build_menu() -> void:
 	pinned.pressed.connect(_on_play)
 	_menu.add_child(pinned)
 	_play_button = pinned
-	_label(col, "Mouse or arrows / WASD steer · Space / click fire · Shift boost · R loop · T barrel roll · C camera · M music · Esc pause", 12, DIM)
+	_label(col, "Arrows / WASD steer · Space or click fires · E rocket · Tab target · Shift boost · R loop · T barrel roll · Esc pause", 12, DIM)
 
 
 func relayout() -> void:

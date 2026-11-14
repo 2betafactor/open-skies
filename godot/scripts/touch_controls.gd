@@ -113,7 +113,7 @@ func _input(event: InputEvent) -> void:
 		var d := event as InputEventScreenDrag
 		if d.index == _steer_id:
 			_steer_pos = _to_local(d.position)
-			var v := (_steer_pos - _steer_origin) / (80.0 * _scale())
+			var v := (_steer_pos - _steer_origin) / (120.0 * _scale())
 			if v.length() > 1.0:
 				v = v.normalized()
 			Controls.set_touch(Vector2(v.x, -v.y), Controls._touch_throttle)

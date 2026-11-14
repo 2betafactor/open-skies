@@ -397,6 +397,9 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 		return Vector3(clamp(pitch_in * 0.7 + _trim, -1.0, 1.0), roll_in, yaw_in)
 
 	var rates: Vector3 = spec.max_rates
+	if assist == Assist.ARCADE:
+		# Arcade: calm, predictable rates regardless of the airframe.
+		rates = Vector3(min(rates.x, 42.0), min(rates.y, 30.0), min(rates.z, 130.0))
 	var bank := deg_to_rad(bank_deg())
 	var pitch := deg_to_rad(pitch_deg())
 	var target_q := pitch_in * deg_to_rad(rates.x)
@@ -440,7 +443,7 @@ func _control_law(dt: float, V: float, q_dyn: float) -> Vector3:
 	# drifts back to the horizon — point and go.
 	if assist == Assist.ARCADE and _maneuver == "":
 		if abs(roll_in) < 0.05:
-			target_p += -bank * 1.6
+			target_p += -bank * 0.9
 		if abs(pitch_in) < 0.05 and abs(bank) < deg_to_rad(60.0):
 			# Nose back toward the horizon, biased to hold altitude.
 			var want_pitch: float = clamp(-velocity.y * 0.012, -0.12, 0.12)

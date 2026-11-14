@@ -130,7 +130,7 @@ func _ready() -> void:
 	menu.main = self
 	add_child(menu)
 	is_mobile = _detect_mobile()
-	Controls.mouse_aim = not is_mobile
+	Controls.mouse_aim = false   # keyboard / touch only: the player is the pilot
 	_apply_ui_scale()
 	get_viewport().size_changed.connect(_apply_ui_scale)
 	_load_prefs()
@@ -308,9 +308,9 @@ func _begin_run() -> void:
 	sfx.play("wave", -10.0)
 	hud.announce("WAVE 1", 2.5)
 	if is_mobile:
-		hud.show_hint("Drag anywhere to steer · FIRE and BOOST bottom right · shoot the ships, dodge their shots", 8.0)
+		hud.show_hint("Drag anywhere (or use the arrows) to steer · FIRE and BOOST bottom right · shoot the ships", 8.0)
 	else:
-		hud.show_hint("Steer with the mouse (or arrows / WASD) · SPACE or click to fire · hold SHIFT to boost · R loop · T roll", 9.0)
+		hud.show_hint("Arrows / WASD steer · SPACE or click to fire · hold SHIFT to boost · E rocket · R loop · T roll", 9.0)
 
 
 func _reset_run() -> void:
@@ -569,11 +569,17 @@ func _update_lock(delta: float) -> void:
 	var lead: Vector3 = locked.pos + locked.vel * (dist / (Guns.SPEED + aircraft.airspeed))
 	camera.look_target = locked.pos
 	var local: Vector3 = aircraft.basis.inverse() * (lead - aircraft.position)
+	# Only a light alignment aid, and only once the target is already near
+	# the nose (within ~12 deg): it finishes your aim, it never flies for you.
 	if local.z < 0.0:
 		var ang_x := atan2(local.x, -local.z)
 		var ang_y := atan2(local.y, -local.z)
-		var strength: float = 0.5 if is_mobile else 0.35
-		Controls.assist = Vector2(clamp(ang_x * 2.5, -1.0, 1.0) * strength, clamp(ang_y * 2.5, -1.0, 1.0) * strength)
+		var cone := deg_to_rad(12.0)
+		if abs(ang_x) < cone and abs(ang_y) < cone:
+			var strength: float = 0.22 if is_mobile else 0.15
+			Controls.assist = Vector2(clamp(ang_x / cone, -1.0, 1.0) * strength, clamp(ang_y / cone, -1.0, 1.0) * strength)
+		else:
+			Controls.assist = Vector2.ZERO
 	else:
 		Controls.assist = Vector2.ZERO
 
@@ -629,7 +635,7 @@ func _arena_boundary(delta: float) -> void:
 		var turn: float = clamp(atan2(local.x, -local.z) * 2.0, -1.0, 1.0)
 		if abs(turn) < 0.05:
 			turn = 1.0
-		Controls.assist = Vector2(turn * min(_outside_timer * 0.4, 0.7), 0.15)
+		Controls.assist = Vector2(turn * min(_outside_timer * 0.3, 0.5), 0.1)
 	else:
 		_outside_timer = 0.0
 
