@@ -23,6 +23,8 @@ var _board: RichTextLabel
 var _results_data: Array = []
 var _geo_cb: JavaScriptObject
 var _panels: Array = []
+var _play_button: Button
+var _again_button: Button
 var _city_grid: GridContainer
 var _panel_widths: Array = []
 
@@ -216,6 +218,7 @@ func _build_menu() -> void:
 	bottom.add_theme_constant_override("separation", 16)
 	col.add_child(bottom)
 	var play := _button(bottom, "PLAY", _on_play, true)
+	_play_button = play
 	play.add_theme_color_override("font_color", Color(0.1, 0.07, 0.0))
 	play.add_theme_color_override("font_hover_color", Color(0.1, 0.07, 0.0))
 	play.add_theme_color_override("font_pressed_color", Color(0.1, 0.07, 0.0))
@@ -226,6 +229,27 @@ func _build_menu() -> void:
 	_status = _label(bottom, "", 13, DIM)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# A PLAY button pinned to the screen corner: the menu scrolls on phones
+	# and the in-flow button can sit below the fold.
+	var pinned := Button.new()
+	pinned.text = "PLAY"
+	pinned.add_theme_font_size_override("font_size", 22)
+	pinned.custom_minimum_size = Vector2(150, 54)
+	pinned.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	pinned.offset_left = -170.0
+	pinned.offset_top = -72.0
+	pinned.offset_right = -20.0
+	pinned.offset_bottom = -18.0
+	pinned.add_theme_color_override("font_color", Color(0.1, 0.07, 0.0))
+	pinned.add_theme_color_override("font_hover_color", Color(0.1, 0.07, 0.0))
+	pinned.add_theme_color_override("font_pressed_color", Color(0.1, 0.07, 0.0))
+	pinned.add_theme_stylebox_override("normal", _style(ACCENT, 14))
+	pinned.add_theme_stylebox_override("hover", _style(ACCENT.lightened(0.15), 14))
+	pinned.add_theme_stylebox_override("pressed", _style(ACCENT.darkened(0.1), 14))
+	pinned.add_theme_stylebox_override("focus", _style(Color(0, 0, 0, 0), 14))
+	pinned.pressed.connect(_on_play)
+	_menu.add_child(pinned)
+	_play_button = pinned
 	_label(col, "Mouse or arrows / WASD steer · Space / click fire · Shift boost · R loop · T barrel roll · C camera · M music · Esc pause", 12, DIM)
 
 
@@ -408,6 +432,7 @@ func _build_summary() -> void:
 	brow.add_theme_constant_override("separation", 8)
 	v.add_child(brow)
 	var again := _button(brow, "PLAY AGAIN", func(): main.restart_run(), true)
+	_again_button = again
 	again.add_theme_stylebox_override("normal", _style(ACCENT, 12))
 	again.add_theme_stylebox_override("hover", _style(ACCENT.lightened(0.15), 12))
 	again.add_theme_color_override("font_color", Color(0.1, 0.07, 0.0))
@@ -422,6 +447,18 @@ func show_summary(result: Dictionary) -> void:
 	_summary_name.text = main.pilot_name
 	_summary_label.text = "[b]%s[/b]\nScore [color=#ffd76a]%d[/color]\n%d ships down · reached wave %d · best combo x%d\n" % [
 		result.place, int(result.score), int(result.kills), int(result.wave), int(result.best_combo)]
+
+
+## Button rectangles in window pixels (for automated tests).
+func button_rects_window() -> Dictionary:
+	var f: float = get_tree().root.content_scale_factor
+	var out := {}
+	for pair in [["play", _play_button], ["play_again", _again_button]]:
+		var b: Button = pair[1]
+		if b != null and b.is_visible_in_tree():
+			var r := b.get_global_rect()
+			out[pair[0]] = [r.position.x * f, r.position.y * f, r.size.x * f, r.size.y * f]
+	return out
 
 
 func summary_name() -> String:

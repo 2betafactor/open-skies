@@ -728,7 +728,7 @@ func _apply_ui_scale() -> void:
 	var short_side: float = min(sz.x, sz.y)
 	var factor: float = clamp(short_side / 720.0, 0.75, 2.0)
 	if is_mobile:
-		factor = clamp(short_side / 420.0, 1.0, 2.6)
+		factor = clamp(short_side / 520.0, 1.0, 2.3)
 	get_tree().root.content_scale_factor = factor
 	if menu != null:
 		menu.relayout()
@@ -804,6 +804,7 @@ func _debug_snapshot(_args: Array) -> void:
 		"touch_fire": Controls._touch_fire,
 		"ctrl_fire": Controls.fire,
 		"touch_buttons": touch.button_rects_window() if touch.enabled else {},
+		"menu_buttons": menu.button_rects_window(),
 		"dpr": JavaScriptBridge.eval("window.devicePixelRatio || 1", true),
 		"firing": guns.firing,
 		"touch_axes": [Controls._touch_axes.x, Controls._touch_axes.y],

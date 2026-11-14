@@ -60,6 +60,7 @@ var _attribution: Dictionary = {}
 var _stats := {"loaded": 0, "visible": 0, "queued": 0, "requests": 0, "failed": 0, "bytes": 0}
 var _next_id := 0
 var _backoff_until := 0.0
+var _root_attempts := 0
 
 signal tile_loaded(tile: Dictionary)
 signal became_ready
@@ -497,6 +498,11 @@ func _on_request_completed(result: int, code: int, _headers: PackedStringArray, 
 		if code == 429 or code == 503:
 			_backoff_until = Time.get_ticks_msec() * 0.001 + 2.0
 		if job.kind == "root":
+			_root_attempts += 1
+			if _root_attempts < 4 and code != 403:
+				# Network hiccup: try the tileset root again shortly.
+				get_tree().create_timer(1.5 * _root_attempts).timeout.connect(func(): start(api_key))
+				return
 			ready_state = "error"
 			error_text = "Tile API error (HTTP %d, result %d). Check the Google Maps key and that Map Tiles API is enabled." % [code, result]
 			push_error(error_text)

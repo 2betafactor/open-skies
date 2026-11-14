@@ -81,6 +81,9 @@ godot/tests: godot --headless --path godot tests/flight_test.tscn -- --vehicle=t
              godot --headless --path godot tests/tile_test.tscn                        # tile streaming (network)
 godot --headless --path godot -- --server=http://localhost:8000 --autostart=1 --trace=1 --seconds=30
 python3 tests/godot_web_smoke.py   # plays the exported web build in headless Chromium (slow: software GL)
+python3 tests/godot_mobile_touch.py  # phone viewport: taps FIRE/ROCKET, drags to steer
+cd tests/puppeteer && npm install && cd ../.. && node tests/puppeteer/mobile_test.js --device "iPhone 13,Pixel 5"
+                                   # Puppeteer with real phone profiles: taps PLAY on the canvas, fights, uses the buttons
 ```
 
 ## Classic (CesiumJS) version — `/classic`

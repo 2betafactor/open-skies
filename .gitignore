@@ -12,3 +12,4 @@ play/index.js
 dist/
 tests/out/
 godot/.godot/
+tests/puppeteer/node_modules/

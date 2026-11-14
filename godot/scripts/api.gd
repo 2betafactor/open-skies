@@ -42,9 +42,13 @@ func load_config() -> void:
 		config_loaded = true
 		config_ready.emit(true)
 		return
-	var data = await get_json("/api/config")
-	if data is Dictionary and data.has("key"):
-		api_key = str(data.key)
+	# Flaky mobile networks: retry a few times before giving up.
+	for attempt in range(4):
+		var data = await get_json("/api/config")
+		if data is Dictionary and data.has("key"):
+			api_key = str(data.key)
+			break
+		await get_tree().create_timer(1.5 * (attempt + 1)).timeout
 	config_loaded = true
 	config_ready.emit(api_key != "")
 
